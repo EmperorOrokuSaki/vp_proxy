@@ -1,0 +1,23 @@
+{
+  "canisters": {
+    "vp_proxy": {
+      "build": "sh build.sh",
+      "candid": "vp_proxy/candid.did",
+      "wasm": "target/wasm32-unknown-unknown/release/vp_proxy.wasm",
+      "type": "custom",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
