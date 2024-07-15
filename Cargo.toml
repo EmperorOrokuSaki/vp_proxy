@@ -1,5 +1,5 @@
 [workspace]
 members = [
-    "src/vp_proxy_backend"
+    "src/vp_proxy"
 ]
 resolver = "2"
