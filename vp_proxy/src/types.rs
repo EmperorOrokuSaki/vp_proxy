@@ -10,5 +10,5 @@ pub struct CouncilMember {
 pub enum CanisterError {
     Unknown(String),
     Unauthorized,
-    GovernanceCanisterIdNotSet,
+    ConfigurationError
 }

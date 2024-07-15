@@ -1,8 +1,17 @@
 use ic_canister::{generate_idl, init, query, update, Canister, Idl, PreUpdate};
-use ic_exports::{candid::Principal, ic_cdk::caller, ic_kit::ic::time};
+use ic_exports::{
+    candid::{Nat, Principal},
+    ic_cdk::{call, caller, id},
+    ic_kit::ic::time,
+};
+use ic_nervous_system_common::ledger;
+use icrc_ledger_types::icrc1::{account::Account, transfer::TransferArg};
 
 use crate::{
-    state::{COUNCIL_MEMBERS, GOVERNANCE_CANISTER_ID},
+    state::{
+        get_governance_canister_id, get_ledger_canister_id, COUNCIL_MEMBERS,
+        GOVERNANCE_CANISTER_ID, LEDGER_CANISTER_ID,
+    },
     types::{CanisterError, CouncilMember},
     utils::only_controller,
 };
@@ -24,8 +33,29 @@ impl VpProxy {
     }
 
     #[update]
-    pub fn create_neuron(&self) -> Result<(), CanisterError> {
+    pub async fn create_neuron(&self, amount: Nat, nonce: u64) -> Result<(), CanisterError> {
         only_controller(caller())?;
+        // transfers all CONF tokens to the neuron's subaccount under the governance canister id
+        let subaccount = ledger::compute_neuron_staking_subaccount(id(), nonce);
+        let governance_canister_id = get_governance_canister_id()?;
+        let ledger_canister_id = get_ledger_canister_id()?;
+
+        let transfer_args = TransferArg {
+            from_subaccount: None,
+            to: Account {
+                owner: governance_canister_id,
+                subaccount: Some(subaccount.0)
+            },
+            fee: None,
+            created_at_time: None,
+            memo: nonce,
+            amount,
+        };
+
+        match call(ledger_canister_id, ("icrc1_transfer",), (transfer_args,)).await {
+
+        }
+
         Ok(())
     }
 
@@ -44,6 +74,7 @@ impl VpProxy {
     #[update]
     pub fn emergency_reset(&self) -> Result<(), CanisterError> {
         only_controller(caller())?;
+        COUNCIL_MEMBERS.with(|members| *members.borrow_mut() = vec![]); // any timer should be cancelled?
         Ok(())
     }
 

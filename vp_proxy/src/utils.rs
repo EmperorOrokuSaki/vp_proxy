@@ -10,11 +10,9 @@ pub fn only_controller(caller: Principal) -> Result<(), CanisterError> {
     Ok(())
 }
 
-pub fn is_governance_set() -> Result<(), CanisterError> {
-    GOVERNANCE_CANISTER_ID.with(|id| {
-        if id.borrow() == Principal::anonymous() {
-            return Err(CanisterError::GovernanceCanisterIdNotSet);
-        }
-        Ok(())
-    })
+pub fn not_anonymous(id: &Principal) -> Result<(), CanisterError> {
+    if id == &Principal::anonymous() {
+        return Err(CanisterError::ConfigurationError);
+    }
+    Ok(())
 }
