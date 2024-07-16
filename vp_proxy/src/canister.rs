@@ -118,14 +118,22 @@ impl VpProxy {
     }
 
     #[update]
-    pub fn add_council_member(&self, new_member: Principal) -> Result<(), CanisterError> {
+    pub fn add_council_member(
+        &self,
+        name: String,
+        neuron_id: NeuronId,
+    ) -> Result<(), CanisterError> {
         only_controller(caller())?;
+        COUNCIL_MEMBERS
+            .with(|members| members.borrow_mut().push(CouncilMember { name, neuron_id }));
         Ok(())
     }
 
     #[update]
-    pub fn remove_council_member(&self, removed_member: Principal) -> Result<(), CanisterError> {
+    pub fn remove_council_member(&self, neuron_id: NeuronId) -> Result<(), CanisterError> {
         only_controller(caller())?;
+        COUNCIL_MEMBERS
+            .with(|members| members.borrow_mut().retain(|member| member.neuron_id != neuron_id));
         Ok(())
     }
 
@@ -144,6 +152,12 @@ impl VpProxy {
 
     #[update]
     pub fn disallow_proposal_type(&self) -> Result<(), CanisterError> {
+        only_controller(caller())?;
+        Ok(())
+    }
+
+    #[update]
+    pub fn start_timers(&self) -> Result<(), CanisterError> {
         only_controller(caller())?;
         Ok(())
     }

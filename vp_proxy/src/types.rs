@@ -1,9 +1,10 @@
 use ic_exports::candid::{CandidType, Principal};
+use ic_sns_governance::pb::v1::NeuronId;
 
 #[derive(CandidType)]
 pub struct CouncilMember {
     name: String,
-    principal_id: Principal
+    neuron_id: NeuronId
 }
 
 #[derive(CandidType)]
