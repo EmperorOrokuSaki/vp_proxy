@@ -7,7 +7,7 @@ pub struct CouncilMember {
     neuron_id: NeuronId
 }
 
-#[derive(CandidType)]
+#[derive(CandidType, Debug)]
 pub enum CanisterError {
     Unknown(String),
     Unauthorized,

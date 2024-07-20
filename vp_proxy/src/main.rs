@@ -2,6 +2,7 @@ mod canister;
 mod types;
 mod state;
 mod utils;
+mod proposals;
 
 use crate::canister::VpProxy;
 

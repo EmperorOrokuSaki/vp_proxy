@@ -1,17 +1,21 @@
 use ic_canister::{generate_idl, init, query, update, Canister, Idl, PreUpdate};
 use ic_exports::{
     candid::{Nat, Principal},
-    ic_cdk::{call, caller, id},
+    ic_cdk::{call, caller, id, print, spawn},
+    ic_cdk_timers::set_timer_interval,
     ic_kit::{ic::time, CallResult},
 };
 use ic_nervous_system_common::ledger;
-use ic_sns_governance::pb::v1::{
-    manage_neuron::{
-        self,
-        claim_or_refresh::{By, MemoAndController},
-        ClaimOrRefresh,
+use ic_sns_governance::{
+    pb::v1::{
+        manage_neuron::{
+            self,
+            claim_or_refresh::{By, MemoAndController},
+            ClaimOrRefresh,
+        },
+        ManageNeuron, ManageNeuronResponse, NeuronId, ProposalId,
     },
-    ManageNeuron, ManageNeuronResponse, NeuronId,
+    reward::Duration,
 };
 use icrc_ledger_types::icrc1::{
     account::Account,
@@ -19,12 +23,13 @@ use icrc_ledger_types::icrc1::{
 };
 
 use crate::{
+    proposals::check_proposals,
     state::{
         get_governance_canister_id, get_ledger_canister_id, COUNCIL_MEMBERS,
-        GOVERNANCE_CANISTER_ID, LEDGER_CANISTER_ID, NEURON_ID,
+        GOVERNANCE_CANISTER_ID, LAST_PROPOSAL, LEDGER_CANISTER_ID, NEURON_ID,
     },
     types::{CanisterError, CouncilMember},
-    utils::{handle_intercanister_call, only_controller},
+    utils::{catch_and_log, handle_intercanister_call, only_controller},
 };
 
 #[derive(Canister)]
@@ -132,8 +137,11 @@ impl VpProxy {
     #[update]
     pub fn remove_council_member(&self, neuron_id: NeuronId) -> Result<(), CanisterError> {
         only_controller(caller())?;
-        COUNCIL_MEMBERS
-            .with(|members| members.borrow_mut().retain(|member| member.neuron_id != neuron_id));
+        COUNCIL_MEMBERS.with(|members| {
+            members
+                .borrow_mut()
+                .retain(|member| member.neuron_id != neuron_id)
+        });
         Ok(())
     }
 
@@ -157,8 +165,28 @@ impl VpProxy {
     }
 
     #[update]
-    pub fn start_timers(&self) -> Result<(), CanisterError> {
+    pub fn watch_proposals(&self, from_proposal: ProposalId) -> Result<(), CanisterError> {
         only_controller(caller())?;
+        LAST_PROPOSAL.with(|proposal| *proposal.borrow_mut() = Some(from_proposal));
+
+        set_timer_interval(
+            Duration::from_secs(86_400),
+            spawn(|| async {
+                loop {
+                    let checked_proposals = check_proposals().await;
+                    if checked_proposals.is_err() {
+                        let err = checked_proposals.err().unwrap();
+                        print(format!(
+                            "Proposals check cycle failed. Retrying. Returned error is: {:#?}",
+                            err
+                        ));
+                    } else {
+                        break;
+                    }
+                }
+            }),
+        );
+
         Ok(())
     }
 

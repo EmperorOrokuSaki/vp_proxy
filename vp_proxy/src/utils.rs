@@ -1,4 +1,4 @@
-use ic_exports::{ic_cdk::api::is_controller, ic_kit::{CallResult, Principal}};
+use ic_exports::{ic_cdk::{api::is_controller, print}, ic_kit::{CallResult, Principal}};
 
 use crate::{state::GOVERNANCE_CANISTER_ID, types::CanisterError};
 
