@@ -1,5 +1,10 @@
 use ic_exports::candid::{CandidType, Principal};
-use ic_sns_governance::pb::v1::NeuronId;
+use ic_sns_governance::pb::v1::{NeuronId, ProposalId};
+
+pub struct LastProposal {
+    pub id: ProposalId,
+    pub creation_timestamp: u64
+}
 
 #[derive(CandidType)]
 pub struct CouncilMember {

@@ -29,7 +29,7 @@ use crate::{
         GOVERNANCE_CANISTER_ID, LAST_PROPOSAL, LEDGER_CANISTER_ID, NEURON_ID,
     },
     types::{CanisterError, CouncilMember},
-    utils::{catch_and_log, handle_intercanister_call, only_controller},
+    utils::{handle_intercanister_call, only_controller},
 };
 
 #[derive(Canister)]
