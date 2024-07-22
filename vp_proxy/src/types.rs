@@ -3,13 +3,14 @@ use ic_sns_governance::pb::v1::{NeuronId, ProposalId};
 
 pub struct LastProposal {
     pub id: ProposalId,
+    pub action: u64,
     pub creation_timestamp: u64
 }
 
 #[derive(CandidType)]
 pub struct CouncilMember {
-    name: String,
-    neuron_id: NeuronId
+    pub name: String,
+    pub neuron_id: NeuronId
 }
 
 #[derive(CandidType, Debug)]

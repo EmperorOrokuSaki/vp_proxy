@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap};
+use std::{cell::{Cell, RefCell}, collections::HashMap};
 
 use ic_exports::ic_kit::Principal;
 use ic_sns_governance::pb::v1::{NeuronId, ProposalId};
@@ -11,6 +11,7 @@ use crate::{
 thread_local! {
     pub static GOVERNANCE_CANISTER_ID: RefCell<Principal> = RefCell::new(Principal::anonymous()); // should be set via set_governance(id: Principal)
     pub static LEDGER_CANISTER_ID: RefCell<Principal> = RefCell::new(Principal::anonymous()); // should be set via set_ledger(id: Principal)
+    pub static MAX_RETRIES: Cell<u8> = Cell::new(3);
 
     pub static COUNCIL_MEMBERS: RefCell<Vec<CouncilMember>> = RefCell::new(Vec::new());
     pub static WATCHING_PROPOSALS: RefCell<Vec<ProposalId>> = RefCell::new(Vec::new());
@@ -19,6 +20,10 @@ thread_local! {
 
     pub static LAST_PROPOSAL: RefCell<Option<LastProposal>> = RefCell::new(None);
     pub static NEURON_ID: RefCell<Option<NeuronId>> = RefCell::new(None);
+}
+
+pub fn get_max_retries() -> u8 {
+    MAX_RETRIES.with(|count| count.get())
 }
 
 pub fn get_governance_canister_id() -> Result<Principal, CanisterError> {

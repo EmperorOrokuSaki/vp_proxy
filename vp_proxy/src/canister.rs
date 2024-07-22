@@ -1,21 +1,20 @@
+use std::time::Duration;
+
 use ic_canister::{generate_idl, init, query, update, Canister, Idl, PreUpdate};
 use ic_exports::{
     candid::{Nat, Principal},
     ic_cdk::{call, caller, id, print, spawn},
-    ic_cdk_timers::set_timer_interval,
+    ic_cdk_timers::{set_timer, set_timer_interval},
     ic_kit::{ic::time, CallResult},
 };
 use ic_nervous_system_common::ledger;
-use ic_sns_governance::{
-    pb::v1::{
-        manage_neuron::{
-            self,
-            claim_or_refresh::{By, MemoAndController},
-            ClaimOrRefresh,
-        },
-        ManageNeuron, ManageNeuronResponse, NeuronId, ProposalId,
+use ic_sns_governance::pb::v1::{
+    manage_neuron::{
+        self,
+        claim_or_refresh::{By, MemoAndController},
+        ClaimOrRefresh,
     },
-    reward::Duration,
+    ManageNeuron, ManageNeuronResponse, NeuronId, ProposalId,
 };
 use icrc_ledger_types::icrc1::{
     account::Account,
@@ -25,10 +24,9 @@ use icrc_ledger_types::icrc1::{
 use crate::{
     proposals::check_proposals,
     state::{
-        get_governance_canister_id, get_ledger_canister_id, COUNCIL_MEMBERS,
-        GOVERNANCE_CANISTER_ID, LAST_PROPOSAL, LEDGER_CANISTER_ID, NEURON_ID,
+        get_governance_canister_id, get_ledger_canister_id, get_max_retries, COUNCIL_MEMBERS, GOVERNANCE_CANISTER_ID, LAST_PROPOSAL, LEDGER_CANISTER_ID, NEURON_ID
     },
-    types::{CanisterError, CouncilMember},
+    types::{CanisterError, CouncilMember, LastProposal},
     utils::{handle_intercanister_call, only_controller},
 };
 
@@ -75,8 +73,8 @@ impl VpProxy {
                 "Error occured on token transfer: {:#?}",
                 err
             ))),
-            _ => {}
-        }
+            _ => Ok(()),
+        }?;
 
         // claim neuron
         let neuron_claim_args = ManageNeuron {
@@ -114,7 +112,9 @@ impl VpProxy {
                 return Ok(neuron_id_unwrapped);
             }
 
-            return Err(CanisterError::Unknown("Neuron Id couldn't be generated."));
+            return Err(CanisterError::Unknown(
+                "Neuron Id couldn't be generated.".to_string(),
+            ));
         } else {
             return Err(CanisterError::Unknown(
                 "Could not handle the manage neuron response".to_string(),
@@ -165,9 +165,39 @@ impl VpProxy {
     }
 
     #[update]
-    pub fn watch_proposals(&self, from_proposal: ProposalId) -> Result<(), CanisterError> {
+    pub fn watch_proposals(
+        &self,
+        from_proposal: ProposalId,
+        from_proposal_action: u64,
+        from_proposal_creation_timestamp: u64,
+    ) -> Result<(), CanisterError> {
         only_controller(caller())?;
-        LAST_PROPOSAL.with(|proposal| *proposal.borrow_mut() = Some(from_proposal));
+        LAST_PROPOSAL.with(|proposal| {
+            *proposal.borrow_mut() = Some(LastProposal {
+                id: from_proposal,
+                action: from_proposal_action,
+                creation_timestamp: from_proposal_creation_timestamp,
+            })
+        });
+
+        set_timer(
+            Duration::ZERO,
+            spawn(|| async {
+                let max_retries = get_max_retries();
+                for _ in 0..max_retries {
+                    let checked_proposals = check_proposals().await;
+                    if checked_proposals.is_err() {
+                        let err = checked_proposals.err().unwrap();
+                        print(format!(
+                            "Proposals check cycle failed. Retrying. Returned error is: {:#?}",
+                            err
+                        ));
+                    } else {
+                        break;
+                    }
+                }
+            }),
+        );
 
         set_timer_interval(
             Duration::from_secs(86_400),
