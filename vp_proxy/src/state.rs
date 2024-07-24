@@ -22,6 +22,10 @@ thread_local! {
     pub static NEURON_ID: RefCell<Option<NeuronId>> = RefCell::new(None);
 }
 
+pub fn get_council_members() -> Vec<CouncilMember> {
+    COUNCIL_MEMBERS.with(|members| members.clone())
+}
+
 pub fn get_max_retries() -> u8 {
     MAX_RETRIES.with(|count| count.get())
 }

@@ -4,11 +4,14 @@ use ic_exports::{
     ic_cdk::{api::time, call, print, spawn},
     ic_cdk_timers::set_timer,
 };
-use ic_sns_governance::pb::v1::{GetProposal, GetProposalResponse, ListProposals, ListProposalsResponse, ProposalId};
+use ic_sns_governance::pb::v1::{
+    GetProposal, GetProposalResponse, ListProposals, ListProposalsResponse, ProposalId,
+};
 
 use crate::{
     state::{
-        get_governance_canister_id, get_last_proposal_id, get_max_retries, EXCLUDED_ACTION_IDS, GOVERNANCE_CANISTER_ID, LAST_PROPOSAL, WATCHING_PROPOSALS
+        get_council_members, get_governance_canister_id, get_last_proposal_id, get_max_retries,
+        EXCLUDED_ACTION_IDS, GOVERNANCE_CANISTER_ID, LAST_PROPOSAL, WATCHING_PROPOSALS,
     },
     types::{CanisterError, LastProposal},
     utils::handle_intercanister_call,
@@ -89,28 +92,73 @@ pub async fn check_proposals() -> Result<(), CanisterError> {
 }
 
 pub async fn vote_on_proposal(id: ProposalId) -> Result<(), CanisterError> {
-    // time to vote on the proposal
     let governance_canister_id = get_governance_canister_id()?;
-    
+
     let get_proposal_arg = GetProposal {
         proposal_id: Some(id),
     };
 
-    let get_proposal_response = call(
-        governance_canister_id,
-        "get_proposal",
-        (get_proposal_arg,),
-    )
-    .await;
+    let get_proposal_response =
+        call(governance_canister_id, "get_proposal", (get_proposal_arg,)).await;
 
     let get_proposal_handled =
         handle_intercanister_call::<GetProposalResponse>(get_proposal_response)?;
-    
+
     if get_proposal_handled.result.is_none() {
-        return Err(CanisterError::Unknown(format!("Proposal could not be found. Id: {:#?}", id)));
+        return Err(CanisterError::Unknown(format!(
+            "Proposal data could not be found. Id: {:#?}",
+            id
+        )));
     }
 
-    
+    let proposal_result = get_proposal_handled.result.unwrap();
 
-    Ok(())
+    match proposal_result {
+        ic_sns_governance::pb::v1::get_proposal_response::Result::Error(err) => {
+            Err(CanisterError::Unknown(format!(
+                "Governance error on proposal data: {}",
+                err.error_message
+            )))
+        }
+        ic_sns_governance::pb::v1::get_proposal_response::Result::Proposal(data) => {
+            if data.decided_timestamp_seconds == 0 {
+                // proposal is already decided
+                return Ok(());
+            }
+
+            let council_members = get_council_members();
+            let ballots = data.ballots;
+            let mut decision: i64 = 0;
+            let mut voters_count: u64 = 0;
+
+            let voting_threshold = council_members.len() / 2;
+
+            council_members.into_iter().map(|member| {
+                let ballot = ballots.get(&member.neuron_id.id);
+                if let Some(vote) = ballot {
+                    // council member has voted.
+                    decision += vote.vote;
+                    voters_count += 1;
+                }
+            });
+
+            if voters_count > voting_threshold {
+                // more than 50% of council members have voted. Participate.
+                if decision == 0 {
+                    // half of the council members have voted against the proposal and half in favor of it.
+                    // vote no.
+                    decision -= 1;
+                }
+
+                if decision > 0 {
+                    // vote yes
+                } else if decision < 0 {
+                    // vote no
+                }
+            } else {
+                // abstain, not enough council members have voted.
+            }
+            Ok(())
+        }
+    }
 }
