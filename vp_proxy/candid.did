@@ -1,0 +1,36 @@
+type CanisterError = variant {
+  Unauthorized;
+  Unknown : text;
+  ConfigurationError;
+};
+type CouncilMember = record { name : text; neuron_id : text };
+type NeuronId = record { id : blob };
+type ParticipationStatus = variant {
+  VotedFor;
+  Undecided;
+  VotedAgainst;
+  Abstained;
+};
+type ProposalId = record { id : nat64 };
+type ProxyProposalQuery = record {
+  id : ProposalId;
+  action : nat64;
+  creation_timestamp : nat64;
+  participation_status : ParticipationStatus;
+};
+type Result = variant { Ok; Err : CanisterError };
+type Result_1 = variant { Ok : NeuronId; Err : CanisterError };
+service : {
+  add_council_member : (text, text) -> (Result);
+  allow_action_type : (nat64) -> (Result);
+  create_neuron : (nat, nat64) -> (Result_1);
+  disallow_action_type : (nat64) -> (Result);
+  emergency_reset : () -> (Result);
+  get_council : () -> (vec CouncilMember) query;
+  get_proposal_history : () -> (vec ProxyProposalQuery) query;
+  get_proposal_status : (ProposalId) -> (opt ProxyProposalQuery) query;
+  get_proposal_watchlist : () -> (vec ProxyProposalQuery) query;
+  remove_council_member : (text) -> (Result);
+  set_governance_id : (principal) -> (Result);
+  watch_proposals : (ProposalId, nat64, nat64) -> (Result);
+}
