@@ -25,9 +25,9 @@ use crate::{
     state::{
         get_governance_canister_id, get_ledger_canister_id, get_max_retries, get_proposal_history,
         get_proposal_watchlist, COUNCIL_MEMBERS, EXCLUDED_ACTION_IDS, GOVERNANCE_CANISTER_ID,
-        LAST_PROPOSAL, NEURON_ID, WATCHING_PROPOSALS,
+        LAST_PROPOSAL, NEURON_ID, PROPOSAL_HISTORY, WATCHING_PROPOSALS,
     },
-    types::{CanisterError, CouncilMember, ProposalHistory, ProxyProposal, ProxyProposalQuery},
+    types::{CanisterError, CouncilMember, ParticipationStatus, ProxyProposal, ProxyProposalQuery},
     utils::{handle_intercanister_call, only_controller},
 };
 
@@ -187,7 +187,8 @@ impl VpProxy {
                 id: from_proposal,
                 action: from_proposal_action,
                 creation_timestamp: from_proposal_creation_timestamp,
-                timer_id: None,
+                timer_id: None,                                       // doesn't matter
+                participation_status: ParticipationStatus::Undecided, // doesn't matter
             })
         });
 
@@ -230,12 +231,35 @@ impl VpProxy {
     }
 
     #[query]
+    pub fn get_proposal_status(&self, id: ProposalId) -> Option<ProxyProposalQuery> {
+        // check both history and watching proposals.
+        let mut proposal: Option<ProxyProposalQuery> = None;
+        PROPOSAL_HISTORY.with(|proposals| {
+            let _ = proposals.borrow().iter().map(|proposal_data| {
+                if proposal_data.id == id {
+                    proposal = Some(proposal_data.clone().into())
+                }
+            });
+        });
+
+        WATCHING_PROPOSALS.with(|proposals| {
+            let _ = proposals.borrow().iter().map(|proposal_data| {
+                if proposal_data.id == id {
+                    proposal = Some(proposal_data.clone().into())
+                }
+            });
+        });
+
+        proposal
+    }
+
+    #[query]
     pub fn get_council(&self) -> Vec<CouncilMember> {
         COUNCIL_MEMBERS.with(|members| members.borrow().clone())
     }
 
     #[query]
-    pub fn get_proposal_history(&self) -> Vec<ProposalHistory> {
+    pub fn get_proposal_history(&self) -> Vec<ProxyProposalQuery> {
         get_proposal_history()
     }
 

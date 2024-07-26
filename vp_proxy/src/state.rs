@@ -4,7 +4,7 @@ use ic_exports::ic_kit::Principal;
 use ic_sns_governance::pb::v1::NeuronId;
 
 use crate::{
-    types::{CanisterError, CouncilMember, ProposalHistory, ProxyProposal, ProxyProposalQuery},
+    types::{CanisterError, CouncilMember, ProxyProposal, ProxyProposalQuery},
     utils::not_anonymous,
 };
 
@@ -20,7 +20,7 @@ thread_local! {
     /// Proposals that are currently being watched (a one-off timer will be triggered one hour before the voting deadline)
     pub static WATCHING_PROPOSALS: RefCell<Vec<ProxyProposal>> = RefCell::new(Vec::new());
     /// Proposals that had been watched.
-    pub static PROPOSAL_HISTORY: RefCell<Vec<ProposalHistory>> = RefCell::new(Vec::new());
+    pub static PROPOSAL_HISTORY: RefCell<Vec<ProxyProposal>> = RefCell::new(Vec::new());
     /// Actions that will be ignored (the proxy canister won't vote on proposals that have an action from this list)
     pub static EXCLUDED_ACTION_IDS: RefCell<Vec<u64>> = RefCell::new(Vec::new());
     /// The last proposal that was handled in this canister.
@@ -47,8 +47,14 @@ pub fn get_proposal_watchlist() -> Vec<ProxyProposalQuery> {
     })
 }
 
-pub fn get_proposal_history() -> Vec<ProposalHistory> {
-    PROPOSAL_HISTORY.with(|proposals| proposals.borrow().clone())
+pub fn get_proposal_history() -> Vec<ProxyProposalQuery> {
+    PROPOSAL_HISTORY.with(|proposals| {
+        proposals
+            .borrow()
+            .iter()
+            .map(|proposal| proposal.clone().into())
+            .collect()
+    })
 }
 
 pub fn get_council_members() -> Vec<CouncilMember> {

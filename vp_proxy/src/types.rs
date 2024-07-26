@@ -6,6 +6,7 @@ pub struct ProxyProposalQuery {
     pub id: ProposalId,
     pub action: u64,
     pub creation_timestamp: u64,
+    pub participation_status: ParticipationStatus,
 }
 
 #[derive(Clone)]
@@ -14,6 +15,7 @@ pub struct ProxyProposal {
     pub action: u64,
     pub creation_timestamp: u64,
     pub timer_id: Option<TimerId>,
+    pub participation_status: ParticipationStatus,
 }
 
 impl From<ProxyProposal> for ProxyProposalQuery {
@@ -22,6 +24,7 @@ impl From<ProxyProposal> for ProxyProposalQuery {
             id: value.id,
             action: value.action,
             creation_timestamp: value.creation_timestamp,
+            participation_status: value.participation_status,
         }
     }
 }
@@ -40,13 +43,8 @@ pub enum CanisterError {
 }
 
 #[derive(CandidType, Clone)]
-pub struct ProposalHistory {
-    pub proposal_id: ProposalId,
-    pub participation_status: ParticipationStatus,
-}
-
-#[derive(CandidType, Clone)]
 pub enum ParticipationStatus {
+    Undecided,
     Abstained,
     VotedFor,
     VotedAgainst,

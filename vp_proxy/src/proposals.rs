@@ -14,7 +14,7 @@ use crate::{
         get_council_members, get_governance_canister_id, get_last_proposal_id, get_max_retries,
         EXCLUDED_ACTION_IDS, LAST_PROPOSAL, PROPOSAL_HISTORY, WATCHING_PROPOSALS,
     },
-    types::{CanisterError, ParticipationStatus, ProposalHistory, ProxyProposal},
+    types::{CanisterError, ParticipationStatus, ProxyProposal},
     utils::{handle_intercanister_call, vote},
 };
 
@@ -80,11 +80,21 @@ async fn handle_proposal(
                 id: proposals[0].id.unwrap(),
                 action: proposals[0].action,
                 creation_timestamp: proposals[0].proposal_creation_timestamp_seconds,
-                timer_id: None,
+                timer_id: None,                                       // doesn't matter
+                participation_status: ParticipationStatus::Undecided, // doesn't matter
             });
         });
         *before_proposal = None;
         Ok(true)
+    } else if proposal
+        .proposal
+        .as_ref()
+        .unwrap()
+        .title
+        .starts_with("CONFIGURE COUNCIL NEURON")
+    {
+        // This is related to council neuron proxy configurations. Ignore.
+        return Ok(false);
     } else {
         let current_time = time() / 1_000_000_000;
         let deadline = proposal.initial_voting_period_seconds
@@ -93,12 +103,16 @@ async fn handle_proposal(
         let remaining_time = deadline - current_time;
 
         let proposal_id = proposal.id.unwrap();
+        let proposal_action = proposal.action;
+        let proposal_creation_timestamp = proposal.proposal_creation_timestamp_seconds;
         let proposal_timer_id = set_timer(Duration::from_secs(remaining_time), move || {
             let proposal_id = proposal_id.clone();
             spawn(async move {
                 let max_retries = get_max_retries();
                 for _ in 0..max_retries {
-                    let checked_proposals = vote_on_proposal(proposal_id).await;
+                    let checked_proposals =
+                        vote_on_proposal(proposal_id, proposal_action, proposal_creation_timestamp)
+                            .await;
                     if let Err(err) = checked_proposals {
                         print(format!(
                             "Proposals check cycle failed. Retrying. Returned error is: {:#?}",
@@ -117,6 +131,7 @@ async fn handle_proposal(
                 action: proposal.action,
                 creation_timestamp: proposal.proposal_creation_timestamp_seconds,
                 timer_id: Some(proposal_timer_id),
+                participation_status: ParticipationStatus::Undecided,
             };
             proposals.borrow_mut().push(proxy_proposal);
         });
@@ -126,7 +141,11 @@ async fn handle_proposal(
     }
 }
 
-pub async fn vote_on_proposal(id: ProposalId) -> Result<(), CanisterError> {
+pub async fn vote_on_proposal(
+    id: ProposalId,
+    action: u64,
+    creation_timestamp: u64,
+) -> Result<(), CanisterError> {
     let governance_canister_id = get_governance_canister_id()?;
 
     let get_proposal_arg = GetProposal {
@@ -197,10 +216,13 @@ pub async fn vote_on_proposal(id: ProposalId) -> Result<(), CanisterError> {
 
             // add this proposal and the final decision of the canister to the history
             PROPOSAL_HISTORY.with(|proposals| {
-                proposals.borrow_mut().push(ProposalHistory {
-                    proposal_id: id,
+                proposals.borrow_mut().push(ProxyProposal {
+                    id,
+                    action,
+                    creation_timestamp,
+                    timer_id: None,
                     participation_status,
-                })
+                });
             });
 
             Ok(())
