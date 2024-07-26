@@ -5,7 +5,8 @@ use ic_exports::{
     ic_cdk_timers::set_timer,
 };
 use ic_sns_governance::pb::v1::{
-    GetProposal, GetProposalResponse, ListProposals, ListProposalsResponse, ProposalData, ProposalId
+    GetProposal, GetProposalResponse, ListProposals, ListProposalsResponse, ProposalData,
+    ProposalId,
 };
 
 use crate::{
@@ -45,7 +46,14 @@ pub async fn check_proposals() -> Result<(), CanisterError> {
 
         // goes through all proposals that were retrieved in this 100-item query
         for proposal in list_proposals_handled.proposals.iter() {
-            if handle_proposal(proposal, &last_proposal, &mut before_proposal, &list_proposals_handled.proposals).await? {
+            if handle_proposal(
+                proposal,
+                &last_proposal,
+                &mut before_proposal,
+                &list_proposals_handled.proposals,
+            )
+            .await?
+            {
                 // the breaking point (behind the last proposal) has been reached, no need to continue further.
                 break;
             }
@@ -85,26 +93,23 @@ async fn handle_proposal(
         let remaining_time = deadline - current_time;
 
         let proposal_id = proposal.id.unwrap();
-        let proposal_timer_id = set_timer(
-            Duration::from_secs(remaining_time),
-            move || {
-                let proposal_id = proposal_id.clone();
-                spawn(async move {
-                    let max_retries = get_max_retries();
-                    for _ in 0..max_retries {
-                        let checked_proposals = vote_on_proposal(proposal_id).await;
-                        if let Err(err) = checked_proposals {
-                            print(format!(
-                                "Proposals check cycle failed. Retrying. Returned error is: {:#?}",
-                                err
-                            ));
-                        } else {
-                            break;
-                        }
+        let proposal_timer_id = set_timer(Duration::from_secs(remaining_time), move || {
+            let proposal_id = proposal_id.clone();
+            spawn(async move {
+                let max_retries = get_max_retries();
+                for _ in 0..max_retries {
+                    let checked_proposals = vote_on_proposal(proposal_id).await;
+                    if let Err(err) = checked_proposals {
+                        print(format!(
+                            "Proposals check cycle failed. Retrying. Returned error is: {:#?}",
+                            err
+                        ));
+                    } else {
+                        break;
                     }
-                })
-            },
-        );
+                }
+            })
+        });
 
         WATCHING_PROPOSALS.with(|proposals| {
             let proxy_proposal = ProxyProposal {
@@ -120,7 +125,6 @@ async fn handle_proposal(
         Ok(false)
     }
 }
-
 
 pub async fn vote_on_proposal(id: ProposalId) -> Result<(), CanisterError> {
     let governance_canister_id = get_governance_canister_id()?;

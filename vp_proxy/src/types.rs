@@ -1,8 +1,12 @@
-use ic_exports::{
-    candid::{CandidType, Principal},
-    ic_cdk_timers::TimerId,
-};
-use ic_sns_governance::pb::v1::{NeuronId, ProposalId};
+use ic_exports::{candid::CandidType, ic_cdk_timers::TimerId};
+use ic_sns_governance::pb::v1::ProposalId;
+
+#[derive(Clone, CandidType)]
+pub struct ProxyProposalQuery {
+    pub id: ProposalId,
+    pub action: u64,
+    pub creation_timestamp: u64,
+}
 
 #[derive(Clone)]
 pub struct ProxyProposal {
@@ -10,6 +14,16 @@ pub struct ProxyProposal {
     pub action: u64,
     pub creation_timestamp: u64,
     pub timer_id: Option<TimerId>,
+}
+
+impl From<ProxyProposal> for ProxyProposalQuery {
+    fn from(value: ProxyProposal) -> Self {
+        Self {
+            id: value.id,
+            action: value.action,
+            creation_timestamp: value.creation_timestamp,
+        }
+    }
 }
 
 #[derive(CandidType, Clone)]

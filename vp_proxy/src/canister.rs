@@ -1,11 +1,10 @@
 use std::time::Duration;
 
-use ic_canister::{generate_idl, init, query, update, Canister, Idl, PreUpdate};
+use ic_canister::{generate_idl, query, update, Canister, Idl, PreUpdate};
 use ic_exports::{
     candid::{Nat, Principal},
     ic_cdk::{call, caller, id, print, spawn},
     ic_cdk_timers::{clear_timer, set_timer, set_timer_interval},
-    ic_kit::{ic::time, CallResult},
 };
 use ic_nervous_system_common::ledger;
 use ic_sns_governance::pb::v1::{
@@ -24,11 +23,11 @@ use icrc_ledger_types::icrc1::{
 use crate::{
     proposals::check_proposals,
     state::{
-        get_governance_canister_id, get_ledger_canister_id, get_max_retries, COUNCIL_MEMBERS,
-        EXCLUDED_ACTION_IDS, GOVERNANCE_CANISTER_ID, LAST_PROPOSAL, NEURON_ID,
-        WATCHING_PROPOSALS,
+        get_governance_canister_id, get_ledger_canister_id, get_max_retries, get_proposal_history,
+        get_proposal_watchlist, COUNCIL_MEMBERS, EXCLUDED_ACTION_IDS, GOVERNANCE_CANISTER_ID,
+        LAST_PROPOSAL, NEURON_ID, WATCHING_PROPOSALS,
     },
-    types::{CanisterError, CouncilMember, ProxyProposal},
+    types::{CanisterError, CouncilMember, ProposalHistory, ProxyProposal, ProxyProposalQuery},
     utils::{handle_intercanister_call, only_controller},
 };
 
@@ -125,11 +124,7 @@ impl VpProxy {
     }
 
     #[update]
-    pub fn add_council_member(
-        &self,
-        name: String,
-        neuron_id: String,
-    ) -> Result<(), CanisterError> {
+    pub fn add_council_member(&self, name: String, neuron_id: String) -> Result<(), CanisterError> {
         only_controller(caller())?;
         COUNCIL_MEMBERS
             .with(|members| members.borrow_mut().push(CouncilMember { name, neuron_id }));
@@ -196,9 +191,8 @@ impl VpProxy {
             })
         });
 
-        set_timer(
-            Duration::ZERO,
-            || spawn(async {
+        set_timer(Duration::ZERO, || {
+            spawn(async {
                 let max_retries = get_max_retries();
                 for _ in 0..max_retries {
                     let checked_proposals = check_proposals().await;
@@ -212,12 +206,11 @@ impl VpProxy {
                         break;
                     }
                 }
-            }),
-        );
+            })
+        });
 
-        set_timer_interval(
-            Duration::from_secs(86_400),
-            || spawn(async {
+        set_timer_interval(Duration::from_secs(86_400), || {
+            spawn(async {
                 loop {
                     let checked_proposals = check_proposals().await;
                     if checked_proposals.is_err() {
@@ -231,7 +224,7 @@ impl VpProxy {
                     }
                 }
             })
-        );
+        });
 
         Ok(())
     }
@@ -239,6 +232,16 @@ impl VpProxy {
     #[query]
     pub fn get_council(&self) -> Vec<CouncilMember> {
         COUNCIL_MEMBERS.with(|members| members.borrow().clone())
+    }
+
+    #[query]
+    pub fn get_proposal_history(&self) -> Vec<ProposalHistory> {
+        get_proposal_history()
+    }
+
+    #[query]
+    pub fn get_proposal_watchlist(&self) -> Vec<ProxyProposalQuery> {
+        get_proposal_watchlist()
     }
 
     pub fn idl() -> Idl {

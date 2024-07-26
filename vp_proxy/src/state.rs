@@ -4,7 +4,7 @@ use ic_exports::ic_kit::Principal;
 use ic_sns_governance::pb::v1::NeuronId;
 
 use crate::{
-    types::{CanisterError, CouncilMember, ProposalHistory, ProxyProposal},
+    types::{CanisterError, CouncilMember, ProposalHistory, ProxyProposal, ProxyProposalQuery},
     utils::not_anonymous,
 };
 
@@ -35,6 +35,16 @@ pub fn get_neuron() -> Result<NeuronId, CanisterError> {
         return Ok(neuron_id.unwrap());
     }
     Err(CanisterError::Unknown("Undefined neuron id".to_string()))
+}
+
+pub fn get_proposal_watchlist() -> Vec<ProxyProposalQuery> {
+    WATCHING_PROPOSALS.with(|proposals| {
+        proposals
+            .borrow()
+            .iter()
+            .map(|proposal| proposal.clone().into())
+            .collect()
+    })
 }
 
 pub fn get_proposal_history() -> Vec<ProposalHistory> {

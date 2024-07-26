@@ -1,5 +1,5 @@
 use ic_exports::{
-    ic_cdk::{api::is_controller, call, print},
+    ic_cdk::{api::is_controller, call},
     ic_kit::{CallResult, Principal},
 };
 use ic_sns_governance::pb::v1::{
@@ -8,7 +8,7 @@ use ic_sns_governance::pb::v1::{
 };
 
 use crate::{
-    state::{get_governance_canister_id, get_neuron, GOVERNANCE_CANISTER_ID},
+    state::{get_governance_canister_id, get_neuron},
     types::CanisterError,
 };
 
@@ -58,7 +58,7 @@ pub async fn vote(proposal_id: ProposalId, vote: i32) -> Result<(), CanisterErro
     let manage_neuron_response =
         handle_intercanister_call::<ManageNeuronResponse>(register_vote_response)?;
 
-    if let Some(command) = manage_neuron_response.command {
+    if let Some(_command) = manage_neuron_response.command {
         return Ok(());
     }
     Err(CanisterError::Unknown(
