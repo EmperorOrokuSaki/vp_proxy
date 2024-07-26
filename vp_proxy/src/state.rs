@@ -1,29 +1,48 @@
-use std::{cell::{Cell, RefCell}, collections::HashMap};
+use std::cell::{Cell, RefCell};
 
 use ic_exports::ic_kit::Principal;
-use ic_sns_governance::pb::v1::{NeuronId, ProposalId};
+use ic_sns_governance::pb::v1::NeuronId;
 
 use crate::{
-    types::{CanisterError, CouncilMember, LastProposal},
+    types::{CanisterError, CouncilMember, ProposalHistory, ProxyProposal},
     utils::not_anonymous,
 };
 
 thread_local! {
+    /// The DAO's governance canister's principal ID.
     pub static GOVERNANCE_CANISTER_ID: RefCell<Principal> = RefCell::new(Principal::anonymous()); // should be set via set_governance(id: Principal)
+    /// The token ledger canister's principal ID.
     pub static LEDGER_CANISTER_ID: RefCell<Principal> = RefCell::new(Principal::anonymous()); // should be set via set_ledger(id: Principal)
+    /// Max number of retries the proxy canister will attempt, if anything fails.
     pub static MAX_RETRIES: Cell<u8> = Cell::new(3);
-
+    /// Vector of all current council members
     pub static COUNCIL_MEMBERS: RefCell<Vec<CouncilMember>> = RefCell::new(Vec::new());
-    pub static WATCHING_PROPOSALS: RefCell<Vec<ProposalId>> = RefCell::new(Vec::new());
-
+    /// Proposals that are currently being watched (a one-off timer will be triggered one hour before the voting deadline)
+    pub static WATCHING_PROPOSALS: RefCell<Vec<ProxyProposal>> = RefCell::new(Vec::new());
+    /// Proposals that had been watched.
+    pub static PROPOSAL_HISTORY: RefCell<Vec<ProposalHistory>> = RefCell::new(Vec::new());
+    /// Actions that will be ignored (the proxy canister won't vote on proposals that have an action from this list)
     pub static EXCLUDED_ACTION_IDS: RefCell<Vec<u64>> = RefCell::new(Vec::new());
-
-    pub static LAST_PROPOSAL: RefCell<Option<LastProposal>> = RefCell::new(None);
+    /// The last proposal that was handled in this canister.
+    pub static LAST_PROPOSAL: RefCell<Option<ProxyProposal>> = RefCell::new(None);
+    /// The proxy canister's neuron ID.
     pub static NEURON_ID: RefCell<Option<NeuronId>> = RefCell::new(None);
 }
 
+pub fn get_neuron() -> Result<NeuronId, CanisterError> {
+    let neuron_id = NEURON_ID.with(|id| id.borrow().clone());
+    if neuron_id.is_some() {
+        return Ok(neuron_id.unwrap());
+    }
+    Err(CanisterError::Unknown("Undefined neuron id".to_string()))
+}
+
+pub fn get_proposal_history() -> Vec<ProposalHistory> {
+    PROPOSAL_HISTORY.with(|proposals| proposals.borrow().clone())
+}
+
 pub fn get_council_members() -> Vec<CouncilMember> {
-    COUNCIL_MEMBERS.with(|members| members.clone())
+    COUNCIL_MEMBERS.with(|members| members.borrow().clone())
 }
 
 pub fn get_max_retries() -> u8 {
@@ -42,7 +61,7 @@ pub fn get_ledger_canister_id() -> Result<Principal, CanisterError> {
     Ok(ledger_canister_id)
 }
 
-pub fn get_last_proposal_id() -> Result<LastProposal, CanisterError> {
+pub fn get_last_proposal_id() -> Result<ProxyProposal, CanisterError> {
     let last_proposal_id = LAST_PROPOSAL.with(|id| id.borrow().clone());
     if last_proposal_id.is_some() {
         return Ok(last_proposal_id.unwrap());

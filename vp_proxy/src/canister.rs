@@ -4,7 +4,7 @@ use ic_canister::{generate_idl, init, query, update, Canister, Idl, PreUpdate};
 use ic_exports::{
     candid::{Nat, Principal},
     ic_cdk::{call, caller, id, print, spawn},
-    ic_cdk_timers::{set_timer, set_timer_interval},
+    ic_cdk_timers::{clear_timer, set_timer, set_timer_interval},
     ic_kit::{ic::time, CallResult},
 };
 use ic_nervous_system_common::ledger;
@@ -18,15 +18,17 @@ use ic_sns_governance::pb::v1::{
 };
 use icrc_ledger_types::icrc1::{
     account::Account,
-    transfer::{TransferArg, TransferError},
+    transfer::{Memo, TransferArg, TransferError},
 };
 
 use crate::{
     proposals::check_proposals,
     state::{
-        get_governance_canister_id, get_ledger_canister_id, get_max_retries, COUNCIL_MEMBERS, GOVERNANCE_CANISTER_ID, LAST_PROPOSAL, LEDGER_CANISTER_ID, NEURON_ID
+        get_governance_canister_id, get_ledger_canister_id, get_max_retries, COUNCIL_MEMBERS,
+        EXCLUDED_ACTION_IDS, GOVERNANCE_CANISTER_ID, LAST_PROPOSAL, NEURON_ID,
+        WATCHING_PROPOSALS,
     },
-    types::{CanisterError, CouncilMember, LastProposal},
+    types::{CanisterError, CouncilMember, ProxyProposal},
     utils::{handle_intercanister_call, only_controller},
 };
 
@@ -50,7 +52,7 @@ impl VpProxy {
     pub async fn create_neuron(&self, amount: Nat, nonce: u64) -> Result<NeuronId, CanisterError> {
         only_controller(caller())?;
         // transfers all CONF tokens to the neuron's subaccount under the governance canister id
-        let subaccount = ledger::compute_neuron_staking_subaccount(id(), nonce);
+        let subaccount = ledger::compute_neuron_staking_subaccount(id().into(), nonce);
         let governance_canister_id = get_governance_canister_id()?;
         let ledger_canister_id = get_ledger_canister_id()?;
 
@@ -62,7 +64,7 @@ impl VpProxy {
             },
             fee: None,
             created_at_time: None,
-            memo: nonce,
+            memo: Some(Memo::from(nonce)),
             amount,
         };
 
@@ -82,7 +84,7 @@ impl VpProxy {
             command: Some(manage_neuron::Command::ClaimOrRefresh(ClaimOrRefresh {
                 by: Some(By::MemoAndController(MemoAndController {
                     memo: nonce,
-                    controller: Some(id()),
+                    controller: Some(id().into()),
                 })),
             })),
         };
@@ -126,7 +128,7 @@ impl VpProxy {
     pub fn add_council_member(
         &self,
         name: String,
-        neuron_id: NeuronId,
+        neuron_id: String,
     ) -> Result<(), CanisterError> {
         only_controller(caller())?;
         COUNCIL_MEMBERS
@@ -135,7 +137,7 @@ impl VpProxy {
     }
 
     #[update]
-    pub fn remove_council_member(&self, neuron_id: NeuronId) -> Result<(), CanisterError> {
+    pub fn remove_council_member(&self, neuron_id: String) -> Result<(), CanisterError> {
         only_controller(caller())?;
         COUNCIL_MEMBERS.with(|members| {
             members
@@ -153,14 +155,27 @@ impl VpProxy {
     }
 
     #[update]
-    pub fn allow_proposal_type(&self) -> Result<(), CanisterError> {
+    pub fn allow_action_type(&self, action_type: u64) -> Result<(), CanisterError> {
         only_controller(caller())?;
+        EXCLUDED_ACTION_IDS
+            .with(|actions| actions.borrow_mut().retain(|action| action != &action_type));
         Ok(())
     }
 
     #[update]
-    pub fn disallow_proposal_type(&self) -> Result<(), CanisterError> {
+    pub fn disallow_action_type(&self, action_type: u64) -> Result<(), CanisterError> {
         only_controller(caller())?;
+        EXCLUDED_ACTION_IDS.with(|actions| actions.borrow_mut().push(action_type));
+        WATCHING_PROPOSALS.with(|proposals| {
+            let mut proposals_mutable = proposals.borrow_mut();
+            proposals_mutable.iter().for_each(|proposal| {
+                if proposal.action == action_type && proposal.timer_id.is_some() {
+                    // cancel its timer
+                    clear_timer(proposal.timer_id.unwrap());
+                }
+            });
+            proposals_mutable.retain(|proposal| proposal.action != action_type);
+        });
         Ok(())
     }
 
@@ -173,16 +188,17 @@ impl VpProxy {
     ) -> Result<(), CanisterError> {
         only_controller(caller())?;
         LAST_PROPOSAL.with(|proposal| {
-            *proposal.borrow_mut() = Some(LastProposal {
+            *proposal.borrow_mut() = Some(ProxyProposal {
                 id: from_proposal,
                 action: from_proposal_action,
                 creation_timestamp: from_proposal_creation_timestamp,
+                timer_id: None,
             })
         });
 
         set_timer(
             Duration::ZERO,
-            spawn(|| async {
+            || spawn(async {
                 let max_retries = get_max_retries();
                 for _ in 0..max_retries {
                     let checked_proposals = check_proposals().await;
@@ -201,7 +217,7 @@ impl VpProxy {
 
         set_timer_interval(
             Duration::from_secs(86_400),
-            spawn(|| async {
+            || spawn(async {
                 loop {
                     let checked_proposals = check_proposals().await;
                     if checked_proposals.is_err() {
@@ -214,7 +230,7 @@ impl VpProxy {
                         break;
                     }
                 }
-            }),
+            })
         );
 
         Ok(())

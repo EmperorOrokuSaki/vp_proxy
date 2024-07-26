@@ -63,5 +63,5 @@ pub async fn vote(proposal_id: ProposalId, vote: i32) -> Result<(), CanisterErro
     }
     Err(CanisterError::Unknown(
         "Could not handle the manage neuron response".to_string(),
-    ));
+    ))
 }
