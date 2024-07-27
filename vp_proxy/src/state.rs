@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 
-use ic_exports::ic_kit::Principal;
-use ic_sns_governance::pb::v1::NeuronId;
+use ic_exports::{ic_cdk_timers::TimerId, ic_kit::Principal};
+use ic_sns_governance::pb::v1::{NeuronId, ProposalId};
 
 use crate::{
     types::{CanisterError, CouncilMember, ProxyProposal, ProxyProposalQuery},
@@ -9,10 +9,14 @@ use crate::{
 };
 
 thread_local! {
+    /// Watching status for new proposals
+    pub static WATCH_LOCK: Cell<bool> = Cell::new(false);
+    /// Fetcher recurring timer's ID
+    pub static FETCHER_TIMER_ID: RefCell<Option<TimerId>> = RefCell::new(None);
     /// The DAO's governance canister's principal ID.
-    pub static GOVERNANCE_CANISTER_ID: RefCell<Principal> = RefCell::new(Principal::anonymous()); // should be set via set_governance(id: Principal)
+    pub static GOVERNANCE_CANISTER_ID: RefCell<Principal> = RefCell::new(Principal::anonymous()); // should be set via set_governance_id(id: Principal)
     /// The token ledger canister's principal ID.
-    pub static LEDGER_CANISTER_ID: RefCell<Principal> = RefCell::new(Principal::anonymous()); // should be set via set_ledger(id: Principal)
+    pub static LEDGER_CANISTER_ID: RefCell<Principal> = RefCell::new(Principal::anonymous()); // should be set via set_ledger_id(id: Principal)
     /// Max number of retries the proxy canister will attempt, if anything fails.
     pub static MAX_RETRIES: Cell<u8> = Cell::new(3);
     /// Vector of all current council members
@@ -27,6 +31,28 @@ thread_local! {
     pub static LAST_PROPOSAL: RefCell<Option<ProxyProposal>> = RefCell::new(None);
     /// The proxy canister's neuron ID.
     pub static NEURON_ID: RefCell<Option<NeuronId>> = RefCell::new(None);
+}
+
+pub fn is_proposal_locked(id: ProposalId) -> Option<bool> {
+    let mut lock = None;
+
+    WATCHING_PROPOSALS.with(|proposals| {
+        let _ = proposals.borrow().iter().map(|proposal_data| {
+            if proposal_data.id == id {
+                lock = Some(proposal_data.lock)
+            }
+        });
+    });
+
+    lock
+}
+
+pub fn get_fetcher_timer_id() -> Option<TimerId> {
+    FETCHER_TIMER_ID.with(|id| id.borrow().clone())
+}
+
+pub fn get_watch_lock() -> bool {
+    WATCH_LOCK.with(|lock| lock.get())
 }
 
 pub fn get_exclusion_list() -> Vec<u64> {

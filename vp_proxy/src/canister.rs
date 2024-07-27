@@ -23,10 +23,11 @@ use icrc_ledger_types::icrc1::{
 use crate::{
     proposals::check_proposals,
     state::{
-        get_exclusion_list, get_governance_canister_id, get_ledger_canister_id, get_max_retries,
-        get_proposal_history, get_proposal_watchlist, COUNCIL_MEMBERS, EXCLUDED_ACTION_IDS,
+        get_exclusion_list, get_fetcher_timer_id, get_governance_canister_id,
+        get_ledger_canister_id, get_max_retries, get_neuron, get_proposal_history,
+        get_proposal_watchlist, get_watch_lock, COUNCIL_MEMBERS, EXCLUDED_ACTION_IDS,
         GOVERNANCE_CANISTER_ID, LAST_PROPOSAL, LEDGER_CANISTER_ID, NEURON_ID, PROPOSAL_HISTORY,
-        WATCHING_PROPOSALS,
+        WATCHING_PROPOSALS, WATCH_LOCK,
     },
     types::{CanisterError, CouncilMember, ParticipationStatus, ProxyProposal, ProxyProposalQuery},
     utils::{handle_intercanister_call, only_controller},
@@ -58,6 +59,11 @@ impl VpProxy {
     #[update]
     pub async fn create_neuron(&self, amount: Nat, nonce: u64) -> Result<NeuronId, CanisterError> {
         only_controller(caller())?;
+
+        if get_neuron().is_ok() {
+            return Err(CanisterError::NeuronAlreadySet);
+        }
+
         // transfers all CONF tokens to the neuron's subaccount under the governance canister id
         let subaccount = ledger::compute_neuron_staking_subaccount(id().into(), nonce);
         let governance_canister_id = get_governance_canister_id()?;
@@ -183,6 +189,38 @@ impl VpProxy {
     }
 
     #[update]
+    pub fn stop_timers(&self) -> Result<(), CanisterError> {
+        only_controller(caller())?;
+
+        if !get_watch_lock() {
+            // lock is off.
+            return Err(CanisterError::WatchingIsAlreadyStopped);
+        }
+
+        // Cancel all timers
+        WATCHING_PROPOSALS.with(|proposals| {
+            let mut proposals = proposals.borrow_mut();
+            for proposal in proposals.iter_mut() {
+                proposal.lock = true;
+                if let Some(timer_id) = proposal.timer_id {
+                    clear_timer(timer_id);
+                }
+                proposal.lock = false;
+            }
+        });
+
+        let fetcher_timer_id = get_fetcher_timer_id();
+
+        if fetcher_timer_id.is_some() {
+            clear_timer(fetcher_timer_id.unwrap());
+        }
+
+        WATCH_LOCK.with(|lock| lock.set(false));
+
+        Ok(())
+    }
+
+    #[update]
     pub fn watch_proposals(
         &self,
         from_proposal: ProposalId,
@@ -190,6 +228,15 @@ impl VpProxy {
         from_proposal_creation_timestamp: u64,
     ) -> Result<(), CanisterError> {
         only_controller(caller())?;
+        get_neuron()?;
+        get_governance_canister_id()?;
+        get_ledger_canister_id()?;
+
+        if get_watch_lock() {
+            // lock is already turned on.
+            return Err(CanisterError::WatchingIsAlreadyInProgress);
+        }
+
         LAST_PROPOSAL.with(|proposal| {
             *proposal.borrow_mut() = Some(ProxyProposal {
                 id: from_proposal,
@@ -197,6 +244,7 @@ impl VpProxy {
                 creation_timestamp: from_proposal_creation_timestamp,
                 timer_id: None,                                       // doesn't matter
                 participation_status: ParticipationStatus::Undecided, // doesn't matter
+                lock: false,
             })
         });
 
@@ -234,6 +282,8 @@ impl VpProxy {
                 }
             })
         });
+
+        WATCH_LOCK.with(|lock| lock.set(true));
 
         Ok(())
     }

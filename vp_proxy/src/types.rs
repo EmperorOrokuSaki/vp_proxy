@@ -16,6 +16,7 @@ pub struct ProxyProposal {
     pub creation_timestamp: u64,
     pub timer_id: Option<TimerId>,
     pub participation_status: ParticipationStatus,
+    pub lock: bool,
 }
 
 impl From<ProxyProposal> for ProxyProposalQuery {
@@ -40,6 +41,11 @@ pub enum CanisterError {
     Unknown(String),
     Unauthorized,
     ConfigurationError,
+    NeuronAlreadySet,
+    WatchingIsAlreadyInProgress,
+    WatchingIsAlreadyStopped,
+    ProposalIsNotInWatchlist,
+    ProposalLocked,
 }
 
 #[derive(CandidType, Clone)]

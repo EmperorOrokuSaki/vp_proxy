@@ -12,7 +12,8 @@ use ic_sns_governance::pb::v1::{
 use crate::{
     state::{
         get_council_members, get_governance_canister_id, get_last_proposal_id, get_max_retries,
-        EXCLUDED_ACTION_IDS, LAST_PROPOSAL, PROPOSAL_HISTORY, WATCHING_PROPOSALS,
+        get_watch_lock, is_proposal_locked, EXCLUDED_ACTION_IDS, LAST_PROPOSAL, PROPOSAL_HISTORY,
+        WATCHING_PROPOSALS,
     },
     types::{CanisterError, ParticipationStatus, ProxyProposal},
     utils::{handle_intercanister_call, vote},
@@ -80,8 +81,9 @@ async fn handle_proposal(
                 id: proposals[0].id.unwrap(),
                 action: proposals[0].action,
                 creation_timestamp: proposals[0].proposal_creation_timestamp_seconds,
-                timer_id: None,                                       // doesn't matter
-                participation_status: ParticipationStatus::Undecided, // doesn't matter
+                timer_id: None, // doesn't matter
+                participation_status: ParticipationStatus::Undecided,
+                lock: false, // doesn't matter
             });
         });
         *before_proposal = None;
@@ -132,6 +134,7 @@ async fn handle_proposal(
                 creation_timestamp: proposal.proposal_creation_timestamp_seconds,
                 timer_id: Some(proposal_timer_id),
                 participation_status: ParticipationStatus::Undecided,
+                lock: false,
             };
             proposals.borrow_mut().push(proxy_proposal);
         });
@@ -146,6 +149,21 @@ pub async fn vote_on_proposal(
     action: u64,
     creation_timestamp: u64,
 ) -> Result<(), CanisterError> {
+    if !get_watch_lock() {
+        // lock is off.
+        return Err(CanisterError::WatchingIsAlreadyStopped);
+    }
+
+    let lock = is_proposal_locked(id);
+
+    if lock.is_none() {
+        return Err(CanisterError::ProposalIsNotInWatchlist);
+    } else {
+        if lock.unwrap() {
+            return Err(CanisterError::ProposalLocked);
+        }
+    }
+
     let governance_canister_id = get_governance_canister_id()?;
 
     let get_proposal_arg = GetProposal {
@@ -222,6 +240,7 @@ pub async fn vote_on_proposal(
                     creation_timestamp,
                     timer_id: None,
                     participation_status,
+                    lock: false,
                 });
             });
 
