@@ -27,10 +27,12 @@ service : {
   disallow_action_type : (nat64) -> (Result);
   emergency_reset : () -> (Result);
   get_council : () -> (vec CouncilMember) query;
+  get_exclusion_list : () -> (vec nat64) query;
   get_proposal_history : () -> (vec ProxyProposalQuery) query;
   get_proposal_status : (ProposalId) -> (opt ProxyProposalQuery) query;
   get_proposal_watchlist : () -> (vec ProxyProposalQuery) query;
   remove_council_member : (text) -> (Result);
   set_governance_id : (principal) -> (Result);
+  set_ledger_id : (principal) -> (Result);
   watch_proposals : (ProposalId, nat64, nat64) -> (Result);
 }
