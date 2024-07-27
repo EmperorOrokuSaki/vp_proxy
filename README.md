@@ -1,61 +1,107 @@
-# `vp_proxy`
+# Voting Power Proxy Canister
 
-Welcome to your new `vp_proxy` project and to the Internet Computer development community. By default, creating a new project adds this README and some template files to your project directory. You can edit these template files to customize your project and to include your own code to speed up the development cycle.
+## Overview
 
-To get started, you might want to explore the project directory structure and the default configuration file. Working with this project in your development environment will not affect any production deployment or identity tokens.
+The Voting Power (VP) Proxy Canister enables council members of SNS DAOs to manage a specified amount of staked SNS tokens within a neuron. It can be configured to participate only in proposals that meet certain criteria, such as not having a specific action type and proposals with titles not beginning with "CONFIGURE COUNCIL NEURON".
 
-To learn more before you start working with `vp_proxy`, see the following documentation available online:
+## Specification
 
-- [Quick Start](https://internetcomputer.org/docs/current/developer-docs/setup/deploy-locally)
-- [SDK Developer Tools](https://internetcomputer.org/docs/current/developer-docs/setup/install)
-- [Rust Canister Development Guide](https://internetcomputer.org/docs/current/developer-docs/backend/rust/)
-- [ic-cdk](https://docs.rs/ic-cdk)
-- [ic-cdk-macros](https://docs.rs/ic-cdk-macros)
-- [Candid Introduction](https://internetcomputer.org/docs/current/developer-docs/backend/candid/)
+### Voting Criteria
 
-If you want to start working on your project right away, you might want to try the following commands:
+- The canister votes on a proposal only if at least 50% of all council neurons have participated.
+  - If less than 50% have participated, the proxy abstains from voting.
+- If the participation condition is met:
+  - The proxy votes in favor of the proposal if more than 50% of the participating council members have voted yes.
+  - Otherwise, the proxy votes against the proposal.
 
-```bash
-cd vp_proxy/
-dfx help
-dfx canister --help
-```
+### Listening to Proposals
 
-## Running the project locally
+Once activated via the `watch_proposals` method, the proxy starts a recurring timer that checks for new proposals every 24 hours.
 
-If you want to test your project locally, you can use the following commands:
+#### Filtering Proposals
 
-```bash
-# Starts the replica, running in the background
-dfx start --background
+The proxy canister excludes the following proposals:
 
-# Deploys your canisters to the replica and generates your candid interface
-dfx deploy
-```
+- Proposals with an action ID listed in the exclusion list.
+- Proposals with a title starting with "CONFIGURE COUNCIL NEURON".
 
-Once the job completes, your application will be available at `http://localhost:4943?canisterId={asset_canister_id}`.
+#### Handling Proposals
 
-If you have made changes to your backend canister, you can generate a new candid interface with
+When a new proposal is added to the watchlist, a one-time timer is set to trigger one hour before the proposal's voting deadline. At that time, the proxy evaluates the participation of council neurons and decides the verdict if voting is still open.
 
-```bash
-npm run generate
-```
+## Deployment
 
-at any time. This is recommended before starting the frontend development server, and will be run automatically any time you run `dfx deploy`.
+The canister can be deployed by anyone, not just the DAO. Follow these steps to deploy:
 
-If you are making frontend changes, you can start a development server with
+1. Deploy the canister on the IC mainnet: 
+    ```sh
+    dfx deploy --ic
+    ```
+2. Configure the SNS governance canister: 
+    ```sh
+    dfx canister call --ic vp_proxy set_governance_id '(principal "PID")'
+    ```
+3. Configure the SNS ledger canister: 
+    ```sh
+    dfx canister call --ic vp_proxy set_ledger_id '(principal "PID")'
+    ```
+4. Add a council member: 
+    ```sh
+    dfx canister call --ic vp_proxy add_council_member '("NAME", "NEURON-ID")'
+    ```
+5. Create a neuron after sending SNS tokens to the canister: 
+    ```sh
+    dfx canister call --ic vp_proxy create_neuron '(TOKEN_AMOUNT, NONCE)'
+    ```
+6. Add action types to the exclusion list: 
+    ```sh
+    dfx canister call --ic vp_proxy disallow_action_type '(ACTION_TYPE_ID)'
+    ```
+7. Start listening to incoming proposals from a given proposal ID: 
+    ```sh
+    dfx canister call --ic vp_proxy watch_proposals '(record { id = PROPOSAL_ID }, FROM_PROPOSAL_ACTION, FROM_PROPOSAL_CREATION_TIMESTAMP)'
+    ```
 
-```bash
-npm start
-```
+### Additional Configuration
 
-Which will start a server at `http://localhost:8080`, proxying API requests to the replica at port 4943.
+- Emergency reset of council members: 
+    ```sh
+    dfx canister call --ic vp_proxy emergency_reset
+    ```
+- Allow a previously excluded action type: 
+    ```sh
+    dfx canister call --ic vp_proxy allow_action_type '(ACTION_TYPE_ID)'
+    ```
+- Remove a previously appointed council member: 
+    ```sh
+    dfx canister call --ic vp_proxy remove_council_member '(NEURON_ID)'
+    ```
 
-### Note on frontend environment variables
+### Queries
 
-If you are hosting frontend code somewhere without using DFX, you may need to make one of the following adjustments to ensure your project does not fetch the root key in production:
+The canister exposes the following query methods:
 
-- set`DFX_NETWORK` to `ic` if you are using Webpack
-- use your own preferred method to replace `process.env.DFX_NETWORK` in the autogenerated declarations
-  - Setting `canisters -> {asset_canister_id} -> declarations -> env_override to a string` in `dfx.json` will replace `process.env.DFX_NETWORK` with the string in the autogenerated declarations
-- Write your own `createActor` constructor
+- List all council members: 
+    ```sh
+    dfx canister call --ic vp_proxy get_council
+    ```
+- List all proposals on the watchlist: 
+    ```sh
+    dfx canister call --ic vp_proxy get_proposal_watchlist
+    ```
+- List all proposals that were on the watchlist: 
+    ```sh
+    dfx canister call --ic vp_proxy get_proposal_history
+    ```
+- Get the status of a specific proposal by its ID: 
+    ```sh
+    dfx canister call --ic vp_proxy get_proposal_status '(record {id = PROPOSAL_ID})'
+    ```
+- List all excluded action types: 
+    ```sh
+    dfx canister call --ic vp_proxy get_exclusion_list
+    ```
+
+## Acknowledgments
+
+This canister was developed for the ICP CC DAO. However, any other SNS DAO or individual who wishes to use it for personal reasons is welcome to do so.
