@@ -76,6 +76,10 @@ The canister can be deployed by anyone, not just the DAO. Follow these steps to 
     ```sh
     dfx canister call --ic vp_proxy remove_council_member '(NEURON_ID)'
     ```
+- Stop watching new proposals and all timers:
+    ```sh
+    dfx canister call --ic vp_proxy stop_timers
+    ```
 
 ### Queries
 

@@ -1,6 +1,11 @@
 type CanisterError = variant {
+  WatchingIsAlreadyInProgress;
+  ProposalIsNotInWatchlist;
   Unauthorized;
+  WatchingIsAlreadyStopped;
   Unknown : text;
+  ProposalLocked;
+  NeuronAlreadySet;
   ConfigurationError;
 };
 type CouncilMember = record { name : text; neuron_id : text };
@@ -34,5 +39,6 @@ service : {
   remove_council_member : (text) -> (Result);
   set_governance_id : (principal) -> (Result);
   set_ledger_id : (principal) -> (Result);
+  stop_timers : () -> (Result);
   watch_proposals : (ProposalId, nat64, nat64) -> (Result);
 }
