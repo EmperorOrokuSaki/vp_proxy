@@ -23,9 +23,10 @@ use icrc_ledger_types::icrc1::{
 use crate::{
     proposals::check_proposals,
     state::{
-        get_governance_canister_id, get_ledger_canister_id, get_max_retries, get_proposal_history,
-        get_proposal_watchlist, COUNCIL_MEMBERS, EXCLUDED_ACTION_IDS, GOVERNANCE_CANISTER_ID,
-        LAST_PROPOSAL, NEURON_ID, PROPOSAL_HISTORY, WATCHING_PROPOSALS,
+        get_exclusion_list, get_governance_canister_id, get_ledger_canister_id, get_max_retries,
+        get_proposal_history, get_proposal_watchlist, COUNCIL_MEMBERS, EXCLUDED_ACTION_IDS,
+        GOVERNANCE_CANISTER_ID, LAST_PROPOSAL, LEDGER_CANISTER_ID, NEURON_ID, PROPOSAL_HISTORY,
+        WATCHING_PROPOSALS,
     },
     types::{CanisterError, CouncilMember, ParticipationStatus, ProxyProposal, ProxyProposalQuery},
     utils::{handle_intercanister_call, only_controller},
@@ -44,6 +45,13 @@ impl VpProxy {
     pub fn set_governance_id(&self, canister_id: Principal) -> Result<(), CanisterError> {
         only_controller(caller())?;
         GOVERNANCE_CANISTER_ID.with(|id| *id.borrow_mut() = canister_id);
+        Ok(())
+    }
+
+    #[update]
+    pub fn set_ledger_id(&self, canister_id: Principal) -> Result<(), CanisterError> {
+        only_controller(caller())?;
+        LEDGER_CANISTER_ID.with(|id| *id.borrow_mut() = canister_id);
         Ok(())
     }
 
@@ -266,6 +274,11 @@ impl VpProxy {
     #[query]
     pub fn get_proposal_watchlist(&self) -> Vec<ProxyProposalQuery> {
         get_proposal_watchlist()
+    }
+
+    #[query]
+    pub fn get_exclusion_list(&self) -> Vec<u64> {
+        get_exclusion_list()
     }
 
     pub fn idl() -> Idl {

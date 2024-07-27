@@ -29,6 +29,10 @@ thread_local! {
     pub static NEURON_ID: RefCell<Option<NeuronId>> = RefCell::new(None);
 }
 
+pub fn get_exclusion_list() -> Vec<u64> {
+    EXCLUDED_ACTION_IDS.with(|actions| actions.borrow().clone())
+}
+
 pub fn get_neuron() -> Result<NeuronId, CanisterError> {
     let neuron_id = NEURON_ID.with(|id| id.borrow().clone());
     if neuron_id.is_some() {
