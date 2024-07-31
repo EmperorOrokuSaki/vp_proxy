@@ -1,7 +1,8 @@
 use ic_exports::{candid::CandidType, ic_cdk_timers::TimerId};
 use ic_sns_governance::pb::v1::ProposalId;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, CandidType)]
+#[derive(Clone, CandidType, Deserialize)]
 pub struct ProxyProposalQuery {
     pub id: ProposalId,
     pub action: u64,
@@ -19,6 +20,19 @@ pub struct ProxyProposal {
     pub lock: bool,
 }
 
+impl From<ProxyProposalQuery> for ProxyProposal {
+    fn from(value: ProxyProposalQuery) -> Self {
+        Self {
+            id: value.id,
+            action: value.action,
+            creation_timestamp: value.creation_timestamp,
+            participation_status: value.participation_status,
+            lock: false,
+            timer_id: None
+        }
+    }
+}
+
 impl From<ProxyProposal> for ProxyProposalQuery {
     fn from(value: ProxyProposal) -> Self {
         Self {
@@ -30,7 +44,7 @@ impl From<ProxyProposal> for ProxyProposalQuery {
     }
 }
 
-#[derive(CandidType, Clone)]
+#[derive(CandidType, Clone, Serialize, Deserialize)]
 pub struct CouncilMember {
     pub name: String,
     pub neuron_id: String,
@@ -48,7 +62,7 @@ pub enum CanisterError {
     ProposalLocked,
 }
 
-#[derive(CandidType, Clone)]
+#[derive(CandidType, Clone, Deserialize)]
 pub enum ParticipationStatus {
     Undecided,
     Abstained,

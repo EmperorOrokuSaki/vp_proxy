@@ -1,9 +1,11 @@
 use std::time::Duration;
 
-use ic_canister::{generate_idl, query, update, Canister, Idl, PreUpdate};
+use ic_canister::{
+    generate_idl, post_upgrade, pre_upgrade, query, update, Canister, Idl, PreUpdate,
+};
 use ic_exports::{
     candid::{Nat, Principal},
-    ic_cdk::{call, caller, id, print, spawn},
+    ic_cdk::{call, caller, id, print, spawn, storage},
     ic_cdk_timers::{clear_timer, set_timer, set_timer_interval},
 };
 use ic_nervous_system_common::ledger;
@@ -23,7 +25,7 @@ use icrc_ledger_types::icrc1::{
 use crate::{
     proposals::check_proposals,
     state::{
-        get_exclusion_list, get_fetcher_timer_id, get_governance_canister_id,
+        get_council_members, get_exclusion_list, get_fetcher_timer_id, get_governance_canister_id,
         get_ledger_canister_id, get_max_retries, get_neuron, get_proposal_history,
         get_proposal_watchlist, get_watch_lock, COUNCIL_MEMBERS, EXCLUDED_ACTION_IDS,
         GOVERNANCE_CANISTER_ID, LAST_PROPOSAL, LEDGER_CANISTER_ID, NEURON_ID, PROPOSAL_HISTORY,
@@ -238,13 +240,11 @@ impl VpProxy {
         }
 
         LAST_PROPOSAL.with(|proposal| {
-            *proposal.borrow_mut() = Some(ProxyProposal {
+            *proposal.borrow_mut() = Some(ProxyProposalQuery {
                 id: from_proposal,
                 action: from_proposal_action,
                 creation_timestamp: from_proposal_creation_timestamp,
-                timer_id: None,                                       // doesn't matter
                 participation_status: ParticipationStatus::Undecided, // doesn't matter
-                lock: false,
             })
         });
 
@@ -329,6 +329,62 @@ impl VpProxy {
     #[query]
     pub fn get_exclusion_list(&self) -> Vec<u64> {
         get_exclusion_list()
+    }
+
+    #[query]
+    pub fn get_neuron_id(&self) -> Result<NeuronId, CanisterError> {
+        get_neuron()
+    }
+
+    #[pre_upgrade]
+    fn pre_upgrade(&self) {
+        let governance_canister_id = GOVERNANCE_CANISTER_ID.with(|id| id.borrow().clone());
+        let ledger_canister_id = LEDGER_CANISTER_ID.with(|id| id.borrow().clone());
+        let council_members = get_council_members();
+        let proposal_history = get_proposal_history();
+        let excluded_action_ids = get_exclusion_list();
+        let neuron_id = NEURON_ID.with(|id| id.borrow().clone());
+
+        let _ = storage::stable_save((
+            governance_canister_id,
+            ledger_canister_id,
+            council_members,
+            proposal_history,
+            excluded_action_ids,
+            neuron_id,
+        ));
+    }
+
+    #[post_upgrade]
+    fn post_upgrade(&self) {
+        let (
+            governance_canister_id,
+            ledger_canister_id,
+            council_members,
+            proposal_history,
+            excluded_action_ids,
+            neuron_id,
+        ): (
+            Principal,
+            Principal,
+            Vec<CouncilMember>,
+            Vec<ProxyProposalQuery>,
+            Vec<u64>,
+            Option<NeuronId>,
+        ) = storage::stable_restore().unwrap();
+
+        GOVERNANCE_CANISTER_ID.with(|id| *id.borrow_mut() = governance_canister_id);
+        LEDGER_CANISTER_ID.with(|id| *id.borrow_mut() = ledger_canister_id);
+
+        COUNCIL_MEMBERS
+        .with(|members| {
+            let mut members_borrowed = members.borrow_mut();
+            council_members.into_iter().for_each(|member| members_borrowed.push(member));
+        });
+
+        PROPOSAL_HISTORY.with(|history| *history.borrow_mut() = proposal_history);
+        EXCLUDED_ACTION_IDS.with(|ids| *ids.borrow_mut() = excluded_action_ids);
+        NEURON_ID.with(|id| *id.borrow_mut() = neuron_id);
     }
 
     pub fn idl() -> Idl {

@@ -15,7 +15,7 @@ use crate::{
         get_watch_lock, is_proposal_locked, EXCLUDED_ACTION_IDS, LAST_PROPOSAL, PROPOSAL_HISTORY,
         WATCHING_PROPOSALS,
     },
-    types::{CanisterError, ParticipationStatus, ProxyProposal},
+    types::{CanisterError, ParticipationStatus, ProxyProposal, ProxyProposalQuery},
     utils::{handle_intercanister_call, vote},
 };
 
@@ -69,7 +69,7 @@ pub async fn check_proposals() -> Result<(), CanisterError> {
 
 async fn handle_proposal(
     proposal: &ProposalData,
-    last_proposal: &ProxyProposal,
+    last_proposal: &ProxyProposalQuery,
     before_proposal: &mut Option<ProposalId>,
     proposals: &Vec<ProposalData>,
 ) -> Result<bool, CanisterError> {
@@ -77,13 +77,11 @@ async fn handle_proposal(
         || proposal.proposal_creation_timestamp_seconds <= last_proposal.creation_timestamp
     {
         LAST_PROPOSAL.with(|last_proposal_cell| {
-            *last_proposal_cell.borrow_mut() = Some(ProxyProposal {
+            *last_proposal_cell.borrow_mut() = Some(ProxyProposalQuery {
                 id: proposals[0].id.unwrap(),
                 action: proposals[0].action,
                 creation_timestamp: proposals[0].proposal_creation_timestamp_seconds,
-                timer_id: None, // doesn't matter
                 participation_status: ParticipationStatus::Undecided,
-                lock: false, // doesn't matter
             });
         });
         *before_proposal = None;
@@ -234,13 +232,11 @@ pub async fn vote_on_proposal(
 
             // add this proposal and the final decision of the canister to the history
             PROPOSAL_HISTORY.with(|proposals| {
-                proposals.borrow_mut().push(ProxyProposal {
+                proposals.borrow_mut().push(ProxyProposalQuery {
                     id,
                     action,
                     creation_timestamp,
-                    timer_id: None,
-                    participation_status,
-                    lock: false,
+                    participation_status
                 });
             });
 

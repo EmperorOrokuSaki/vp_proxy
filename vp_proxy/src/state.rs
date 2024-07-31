@@ -24,11 +24,11 @@ thread_local! {
     /// Proposals that are currently being watched (a one-off timer will be triggered one hour before the voting deadline)
     pub static WATCHING_PROPOSALS: RefCell<Vec<ProxyProposal>> = RefCell::new(Vec::new());
     /// Proposals that had been watched.
-    pub static PROPOSAL_HISTORY: RefCell<Vec<ProxyProposal>> = RefCell::new(Vec::new());
+    pub static PROPOSAL_HISTORY: RefCell<Vec<ProxyProposalQuery>> = RefCell::new(Vec::new());
     /// Actions that will be ignored (the proxy canister won't vote on proposals that have an action from this list)
     pub static EXCLUDED_ACTION_IDS: RefCell<Vec<u64>> = RefCell::new(Vec::new());
     /// The last proposal that was handled in this canister.
-    pub static LAST_PROPOSAL: RefCell<Option<ProxyProposal>> = RefCell::new(None);
+    pub static LAST_PROPOSAL: RefCell<Option<ProxyProposalQuery>> = RefCell::new(None);
     /// The proxy canister's neuron ID.
     pub static NEURON_ID: RefCell<Option<NeuronId>> = RefCell::new(None);
 }
@@ -107,7 +107,7 @@ pub fn get_ledger_canister_id() -> Result<Principal, CanisterError> {
     Ok(ledger_canister_id)
 }
 
-pub fn get_last_proposal_id() -> Result<ProxyProposal, CanisterError> {
+pub fn get_last_proposal_id() -> Result<ProxyProposalQuery, CanisterError> {
     let last_proposal_id = LAST_PROPOSAL.with(|id| id.borrow().clone());
     if last_proposal_id.is_some() {
         return Ok(last_proposal_id.unwrap());
