@@ -236,7 +236,7 @@ pub async fn vote_on_proposal(
                     id,
                     action,
                     creation_timestamp,
-                    participation_status
+                    participation_status,
                 });
             });
 

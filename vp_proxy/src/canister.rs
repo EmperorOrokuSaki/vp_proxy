@@ -31,7 +31,7 @@ use crate::{
         GOVERNANCE_CANISTER_ID, LAST_PROPOSAL, LEDGER_CANISTER_ID, NEURON_ID, PROPOSAL_HISTORY,
         WATCHING_PROPOSALS, WATCH_LOCK,
     },
-    types::{CanisterError, CouncilMember, ParticipationStatus, ProxyProposal, ProxyProposalQuery},
+    types::{CanisterError, CouncilMember, ParticipationStatus, ProxyProposalQuery},
     utils::{handle_intercanister_call, only_controller},
 };
 
@@ -376,10 +376,11 @@ impl VpProxy {
         GOVERNANCE_CANISTER_ID.with(|id| *id.borrow_mut() = governance_canister_id);
         LEDGER_CANISTER_ID.with(|id| *id.borrow_mut() = ledger_canister_id);
 
-        COUNCIL_MEMBERS
-        .with(|members| {
+        COUNCIL_MEMBERS.with(|members| {
             let mut members_borrowed = members.borrow_mut();
-            council_members.into_iter().for_each(|member| members_borrowed.push(member));
+            council_members
+                .into_iter()
+                .for_each(|member| members_borrowed.push(member));
         });
 
         PROPOSAL_HISTORY.with(|history| *history.borrow_mut() = proposal_history);

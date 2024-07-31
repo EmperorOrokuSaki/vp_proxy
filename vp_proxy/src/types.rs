@@ -28,7 +28,7 @@ impl From<ProxyProposalQuery> for ProxyProposal {
             creation_timestamp: value.creation_timestamp,
             participation_status: value.participation_status,
             lock: false,
-            timer_id: None
+            timer_id: None,
         }
     }
 }
