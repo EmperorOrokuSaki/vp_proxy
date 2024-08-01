@@ -8,6 +8,7 @@ pub struct ProxyProposalQuery {
     pub action: u64,
     pub creation_timestamp: u64,
     pub participation_status: ParticipationStatus,
+    pub timer_scheduled_for: Option<u64>
 }
 
 #[derive(Clone)]
@@ -18,6 +19,7 @@ pub struct ProxyProposal {
     pub timer_id: Option<TimerId>,
     pub participation_status: ParticipationStatus,
     pub lock: bool,
+    pub timer_scheduled_for: Option<u64>
 }
 
 impl From<ProxyProposalQuery> for ProxyProposal {
@@ -29,6 +31,7 @@ impl From<ProxyProposalQuery> for ProxyProposal {
             participation_status: value.participation_status,
             lock: false,
             timer_id: None,
+            timer_scheduled_for: None,
         }
     }
 }
@@ -40,6 +43,7 @@ impl From<ProxyProposal> for ProxyProposalQuery {
             action: value.action,
             creation_timestamp: value.creation_timestamp,
             participation_status: value.participation_status,
+            timer_scheduled_for: value.timer_scheduled_for,
         }
     }
 }
@@ -65,7 +69,7 @@ pub enum CanisterError {
 #[derive(CandidType, Clone, Deserialize)]
 pub enum ParticipationStatus {
     Undecided,
-    Abstained,
+    TooLateToParticipate,
     VotedFor,
     VotedAgainst,
 }

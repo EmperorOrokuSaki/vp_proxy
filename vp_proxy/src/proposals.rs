@@ -82,6 +82,7 @@ async fn handle_proposal(
                 action: proposals[0].action,
                 creation_timestamp: proposals[0].proposal_creation_timestamp_seconds,
                 participation_status: ParticipationStatus::Undecided,
+                timer_scheduled_for: None,
             });
         });
         *before_proposal = None;
@@ -95,7 +96,7 @@ async fn handle_proposal(
     {
         // This is related to council neuron proxy configurations. Ignore.
         return Ok(false);
-    } else if proposal.decided_timestamp_seconds != 0 {
+    } else if proposal.reward_event_end_timestamp_seconds.is_some() {
         return Ok(false);
     } else {
         let current_time = time() / 1_000_000_000;
@@ -135,6 +136,7 @@ async fn handle_proposal(
                 timer_id: Some(proposal_timer_id),
                 participation_status: ParticipationStatus::Undecided,
                 lock: false,
+                timer_scheduled_for: Some(deadline),
             };
             proposals.borrow_mut().push(proxy_proposal);
         });
@@ -184,7 +186,7 @@ pub async fn vote_on_proposal(
     }
 
     let proposal_result = get_proposal_handled.result.unwrap();
-    let mut participation_status = ParticipationStatus::Abstained;
+    let mut participation_status = ParticipationStatus::VotedAgainst;
 
     match proposal_result {
         ic_sns_governance::pb::v1::get_proposal_response::Result::Error(err) => {
@@ -194,8 +196,22 @@ pub async fn vote_on_proposal(
             )))
         }
         ic_sns_governance::pb::v1::get_proposal_response::Result::Proposal(data) => {
-            if data.decided_timestamp_seconds == 0 {
-                // proposal is already decided
+            if data.reward_event_end_timestamp_seconds.is_some() {
+                // proposal is not accepting votes anymore.
+                // remove this proposal from the watchlist
+                WATCHING_PROPOSALS
+                    .with(|proposals| proposals.borrow_mut().retain(|proposal| proposal.id != id));
+                participation_status = ParticipationStatus::TooLateToParticipate;
+                // add this proposal and the final decision of the canister to the history
+                PROPOSAL_HISTORY.with(|proposals| {
+                    proposals.borrow_mut().push(ProxyProposalQuery {
+                        id,
+                        action,
+                        creation_timestamp,
+                        participation_status,
+                        timer_scheduled_for: None,
+                    });
+                });
                 return Ok(());
             }
 
@@ -223,9 +239,10 @@ pub async fn vote_on_proposal(
                     participation_status = ParticipationStatus::VotedFor;
                 } else if decision < 0 || decision == 0 {
                     // vote no
-                    vote(id, -1).await?;
-                    participation_status = ParticipationStatus::VotedAgainst;
+                    vote(id, 0).await?;
                 }
+            } else {
+                vote(id, 0).await?;
             }
 
             // remove this proposal from the watchlist
@@ -239,6 +256,7 @@ pub async fn vote_on_proposal(
                     action,
                     creation_timestamp,
                     participation_status,
+                    timer_scheduled_for: None,
                 });
             });
 

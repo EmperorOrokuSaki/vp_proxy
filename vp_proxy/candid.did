@@ -12,13 +12,14 @@ type CouncilMember = record { name : text; neuron_id : text };
 type NeuronId = record { id : blob };
 type ParticipationStatus = variant {
   VotedFor;
+  TooLateToParticipate;
   Undecided;
   VotedAgainst;
-  Abstained;
 };
 type ProposalId = record { id : nat64 };
 type ProxyProposalQuery = record {
   id : ProposalId;
+  timer_scheduled_for : opt nat64;
   action : nat64;
   creation_timestamp : nat64;
   participation_status : ParticipationStatus;

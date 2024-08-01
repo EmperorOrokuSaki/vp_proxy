@@ -28,8 +28,8 @@ use crate::{
         get_council_members, get_exclusion_list, get_fetcher_timer_id, get_governance_canister_id,
         get_ledger_canister_id, get_max_retries, get_neuron, get_proposal_history,
         get_proposal_watchlist, get_watch_lock, COUNCIL_MEMBERS, EXCLUDED_ACTION_IDS,
-        GOVERNANCE_CANISTER_ID, LAST_PROPOSAL, LEDGER_CANISTER_ID, NEURON_ID, PROPOSAL_HISTORY,
-        WATCHING_PROPOSALS, WATCH_LOCK,
+        FETCHER_TIMER_ID, GOVERNANCE_CANISTER_ID, LAST_PROPOSAL, LEDGER_CANISTER_ID, NEURON_ID,
+        PROPOSAL_HISTORY, WATCHING_PROPOSALS, WATCH_LOCK,
     },
     types::{CanisterError, CouncilMember, ParticipationStatus, ProxyProposalQuery},
     utils::{handle_intercanister_call, only_controller},
@@ -209,6 +209,7 @@ impl VpProxy {
                 }
                 proposal.lock = false;
             }
+            *proposals = vec![];
         });
 
         let fetcher_timer_id = get_fetcher_timer_id();
@@ -216,6 +217,8 @@ impl VpProxy {
         if fetcher_timer_id.is_some() {
             clear_timer(fetcher_timer_id.unwrap());
         }
+
+        FETCHER_TIMER_ID.with(|id| *id.borrow_mut() = None);
 
         WATCH_LOCK.with(|lock| lock.set(false));
 
@@ -245,6 +248,7 @@ impl VpProxy {
                 action: from_proposal_action,
                 creation_timestamp: from_proposal_creation_timestamp,
                 participation_status: ParticipationStatus::Undecided, // doesn't matter
+                timer_scheduled_for: None,
             })
         });
 
