@@ -336,6 +336,21 @@ impl VpProxy {
         get_neuron()
     }
 
+    #[query]
+    pub fn get_governance_id(&self) -> Result<Principal, CanisterError> {
+        get_governance_canister_id()
+    }
+
+    #[query]
+    pub fn get_ledger_id(&self) -> Result<Principal, CanisterError> {
+        get_ledger_canister_id()
+    }
+
+    #[query]
+    pub fn get_watching_status(&self) -> bool {
+        get_watch_lock()
+    }
+
     #[pre_upgrade]
     fn pre_upgrade(&self) {
         let governance_canister_id = GOVERNANCE_CANISTER_ID.with(|id| id.borrow().clone());

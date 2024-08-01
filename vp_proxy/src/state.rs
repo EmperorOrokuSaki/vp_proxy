@@ -113,6 +113,6 @@ pub fn get_last_proposal_id() -> Result<ProxyProposalQuery, CanisterError> {
         return Ok(last_proposal_id.unwrap());
     }
     Err(CanisterError::Unknown(
-        "Undefined last proposal id".to_string(),
+        "Undefined last proposal id.".to_string(),
     ))
 }

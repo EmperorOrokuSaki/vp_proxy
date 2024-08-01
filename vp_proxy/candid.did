@@ -25,6 +25,7 @@ type ProxyProposalQuery = record {
 };
 type Result = variant { Ok; Err : CanisterError };
 type Result_1 = variant { Ok : NeuronId; Err : CanisterError };
+type Result_2 = variant { Ok : principal; Err : CanisterError };
 service : {
   add_council_member : (text, text) -> (Result);
   allow_action_type : (nat64) -> (Result);
@@ -33,9 +34,13 @@ service : {
   emergency_reset : () -> (Result);
   get_council : () -> (vec CouncilMember) query;
   get_exclusion_list : () -> (vec nat64) query;
+  get_governance_id : () -> (Result_2) query;
+  get_ledger_id : () -> (Result_2) query;
+  get_neuron_id : () -> (Result_1) query;
   get_proposal_history : () -> (vec ProxyProposalQuery) query;
   get_proposal_status : (ProposalId) -> (opt ProxyProposalQuery) query;
   get_proposal_watchlist : () -> (vec ProxyProposalQuery) query;
+  get_watching_status : () -> (bool) query;
   remove_council_member : (text) -> (Result);
   set_governance_id : (principal) -> (Result);
   set_ledger_id : (principal) -> (Result);
