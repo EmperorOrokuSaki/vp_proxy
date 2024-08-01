@@ -95,6 +95,8 @@ async fn handle_proposal(
     {
         // This is related to council neuron proxy configurations. Ignore.
         return Ok(false);
+    } else if proposal.decided_timestamp_seconds != 0 {
+        return Ok(false);
     } else {
         let current_time = time() / 1_000_000_000;
         let deadline = proposal.initial_voting_period_seconds
