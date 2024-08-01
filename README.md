@@ -105,6 +105,22 @@ The canister exposes the following query methods:
     ```sh
     dfx canister call --ic vp_proxy get_exclusion_list
     ```
+- Get the current governance canister ID:
+    ```sh
+    dfx canister call --ic vp_proxy get_governance_id
+    ```
+- Get the current ledger canister ID:
+    ```sh
+    dfx canister call --ic vp_proxy get_ledger_id
+    ```
+- Get the current neuron ID:
+    ```sh
+    dfx canister call --ic vp_proxy get_neuron_id
+    ```
+- Get the watching status of proposals:
+    ```sh
+    dfx canister call --ic vp_proxy get_watching_status
+    ```
 
 ## Acknowledgments
 
