@@ -42,6 +42,7 @@ service : {
   get_proposal_status : (ProposalId) -> (opt ProxyProposalQuery) query;
   get_proposal_watchlist : () -> (vec ProxyProposalQuery) query;
   get_watching_status : () -> (bool) query;
+  increase_disolve_delay : (nat32) -> (Result);
   remove_council_member : (text) -> (Result);
   set_governance_id : (principal) -> (Result);
   set_ledger_id : (principal) -> (Result);

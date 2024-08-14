@@ -8,7 +8,7 @@ pub struct ProxyProposalQuery {
     pub action: u64,
     pub creation_timestamp: u64,
     pub participation_status: ParticipationStatus,
-    pub timer_scheduled_for: Option<u64>
+    pub timer_scheduled_for: Option<u64>,
 }
 
 #[derive(Clone)]
@@ -19,7 +19,7 @@ pub struct ProxyProposal {
     pub timer_id: Option<TimerId>,
     pub participation_status: ParticipationStatus,
     pub lock: bool,
-    pub timer_scheduled_for: Option<u64>
+    pub timer_scheduled_for: Option<u64>,
 }
 
 impl From<ProxyProposalQuery> for ProxyProposal {

@@ -13,7 +13,8 @@ use ic_sns_governance::pb::v1::{
     manage_neuron::{
         self,
         claim_or_refresh::{By, MemoAndController},
-        ClaimOrRefresh,
+        configure::Operation,
+        ClaimOrRefresh, Configure, IncreaseDissolveDelay,
     },
     ManageNeuron, ManageNeuronResponse, NeuronId, ProposalId,
 };
@@ -137,6 +138,45 @@ impl VpProxy {
                 "Could not handle the manage neuron response".to_string(),
             ));
         }
+    }
+
+    #[update]
+    pub async fn increase_disolve_delay(&self, delay: u32) -> Result<(), CanisterError> {
+        only_controller(caller())?;
+
+        let neuron_id = get_neuron()?;
+        let governance_canister_id = get_governance_canister_id()?;
+
+        let neuron_claim_args = ManageNeuron {
+            subaccount: neuron_id.id,
+            command: Some(manage_neuron::Command::Configure(Configure {
+                operation: Some(Operation::IncreaseDissolveDelay(IncreaseDissolveDelay {
+                    additional_dissolve_delay_seconds: delay,
+                })),
+            })),
+        };
+
+        let claim_response = call(
+            governance_canister_id,
+            "manage_neuron",
+            (neuron_claim_args,),
+        )
+        .await;
+
+        let manage_neuron_response =
+            handle_intercanister_call::<ManageNeuronResponse>(claim_response)?;
+
+        if let Some(command) = manage_neuron_response.command {
+            return match command {
+                ic_sns_governance::pb::v1::manage_neuron_response::Command::Configure(_) => Ok(()),
+                _ => Err(CanisterError::Unknown(
+                    "Could not handle the manage neuron response".to_string(),
+                )),
+            };
+        }
+        return Err(CanisterError::Unknown(
+            "Could not handle the manage neuron response".to_string(),
+        ));
     }
 
     #[update]
