@@ -26,6 +26,7 @@ pub async fn check_proposals() -> Result<(), CanisterError> {
     let mut before_proposal: Option<ProposalId> = None;
 
     // we start a loop that continues until it reaches a point either before the last proposal indexed in the previous 24h cycle or the same proposal itself
+    print("Starting the 24hs proposals check cycle.");
     loop {
         let list_proposals_arg = ListProposals {
             limit: 100, // maximum limit set by dfinity's sns project
