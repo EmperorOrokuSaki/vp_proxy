@@ -13,6 +13,7 @@ type NeuronId = record { id : blob };
 type ParticipationStatus = variant {
   VotedFor;
   TooLateToParticipate;
+  FailedToVote;
   Undecided;
   VotedAgainst;
 };
@@ -30,6 +31,7 @@ type Result_2 = variant { Ok : principal; Err : CanisterError };
 service : {
   add_council_member : (text, text) -> (Result);
   allow_action_type : (nat64) -> (Result);
+  clear_proposal_history : () -> (Result);
   create_neuron : (nat, nat64) -> (Result_1);
   disallow_action_type : (nat64) -> (Result);
   emergency_reset : () -> (Result);
