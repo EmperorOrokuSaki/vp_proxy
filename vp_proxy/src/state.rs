@@ -33,19 +33,42 @@ thread_local! {
     pub static NEURON_ID: RefCell<Option<NeuronId>> = RefCell::new(None);
 }
 
-pub fn is_proposal_locked(id: ProposalId) -> Option<bool> {
-    let mut lock = None;
-
+/// Attempts to change the proposal's lock status with `lock`
+/// Returns Err if the operation is not successful
+pub fn change_proposal_lock(id: ProposalId, lock: bool) -> Result<(), CanisterError> {
     WATCHING_PROPOSALS.with(|proposals| {
-        let _ = proposals.borrow().iter().map(|proposal_data| {
+        let mut binding = proposals.borrow_mut();
+        let iterator = binding.iter_mut();
+        for proposal_data in iterator {
             if proposal_data.id == id {
-                lock = Some(proposal_data.lock)
+                if proposal_data.lock && lock {
+                    // already locked
+                    return Err(CanisterError::ProposalLocked(id.id));
+                }
+                proposal_data.lock = lock;
+                return Ok(());
             }
-        });
-    });
-
-    lock
+        }
+        // no Ok was returned if we reach this stage in the code
+        return Err(CanisterError::ProposalIsNotInWatchlist(id.id));
+    })
 }
+
+// /// Returns true if proposal is locked, and false if not.
+// /// Returns Err if proposal is not found in the watchlist
+// pub fn is_proposal_locked(id: ProposalId) -> Result<bool, CanisterError> {
+//     WATCHING_PROPOSALS.with(|proposals| {
+//         let binding = proposals.borrow();
+//         let iterator = binding.iter();
+//         for proposal_data in iterator {
+//             if proposal_data.id == id {
+//                 return Ok(proposal_data.lock);
+//             }
+//         }
+//         // no Ok was returned if we reach this stage in the code
+//         return Err(CanisterError::ProposalIsNotInWatchlist(id.id));
+//     })
+// }
 
 pub fn get_fetcher_timer_id() -> Option<TimerId> {
     FETCHER_TIMER_ID.with(|id| id.borrow().clone())

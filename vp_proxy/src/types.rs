@@ -62,14 +62,15 @@ pub enum CanisterError {
     NeuronAlreadySet,
     WatchingIsAlreadyInProgress,
     WatchingIsAlreadyStopped,
-    ProposalIsNotInWatchlist,
-    ProposalLocked,
+    ProposalIsNotInWatchlist(u64),
+    ProposalLocked(u64),
 }
 
-#[derive(CandidType, Clone, Deserialize)]
+#[derive(CandidType, Clone, Deserialize, Debug)]
 pub enum ParticipationStatus {
     Undecided,
     TooLateToParticipate,
     VotedFor,
     VotedAgainst,
+    FailedToVote,
 }

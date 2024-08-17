@@ -266,6 +266,13 @@ impl VpProxy {
     }
 
     #[update]
+    pub fn clear_proposal_history(&self) -> Result<(), CanisterError> {
+        only_controller(caller())?;
+        PROPOSAL_HISTORY.with(|history| *history.borrow_mut() = vec![]);
+        Ok(())
+    }
+
+    #[update]
     pub fn watch_proposals(
         &self,
         from_proposal: ProposalId,

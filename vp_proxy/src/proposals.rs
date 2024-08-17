@@ -11,9 +11,9 @@ use ic_sns_governance::pb::v1::{
 
 use crate::{
     state::{
-        get_council_members, get_governance_canister_id, get_last_proposal_id, get_max_retries,
-        get_watch_lock, is_proposal_locked, EXCLUDED_ACTION_IDS, LAST_PROPOSAL, PROPOSAL_HISTORY,
-        WATCHING_PROPOSALS,
+        change_proposal_lock, get_council_members, get_governance_canister_id,
+        get_last_proposal_id, get_max_retries, get_watch_lock, EXCLUDED_ACTION_IDS, LAST_PROPOSAL,
+        PROPOSAL_HISTORY, WATCHING_PROPOSALS,
     },
     types::{CanisterError, ParticipationStatus, ProxyProposal, ProxyProposalQuery},
     utils::{handle_intercanister_call, vote},
@@ -103,25 +103,68 @@ async fn handle_proposal(
         let deadline = proposal.initial_voting_period_seconds
             + proposal.proposal_creation_timestamp_seconds
             - 3600;
+
+        if deadline <= current_time {
+            return Ok(false);
+        }
+
         let remaining_time = deadline - current_time;
 
         let proposal_id = proposal.id.unwrap();
         let proposal_action = proposal.action;
         let proposal_creation_timestamp = proposal.proposal_creation_timestamp_seconds;
+        print(format!(
+            "Scheduling vote on proposal id {} in {} seconds.",
+            proposal_id.id, remaining_time
+        ));
         let proposal_timer_id = set_timer(Duration::from_secs(remaining_time), move || {
             let proposal_id = proposal_id.clone();
             spawn(async move {
                 let max_retries = get_max_retries();
-                for _ in 0..max_retries {
-                    let checked_proposals =
+                for attempt in 1..=max_retries {
+                    let checked_proposal =
                         vote_on_proposal(proposal_id, proposal_action, proposal_creation_timestamp)
                             .await;
-                    if let Err(err) = checked_proposals {
+                    if let Err(err) = checked_proposal {
+                        let _ = change_proposal_lock(proposal_id, false);
+                        if attempt + 1 >= max_retries {
+                            print(format!(
+                                "Voting failed for proposal id {}. Retry number {}. Returned error is: {:#?}. No more retries. Adding proposal to history with FailedToVote participation status.",
+                                proposal_id.id,
+                                attempt,
+                                err
+                            ));
+
+                            // remove this proposal from the watchlist
+                            WATCHING_PROPOSALS.with(|proposals| {
+                                proposals
+                                    .borrow_mut()
+                                    .retain(|proposal| proposal.id != proposal_id)
+                            });
+
+                            // add this proposal and the final decision of the canister to the history
+                            PROPOSAL_HISTORY.with(|proposals| {
+                                proposals.borrow_mut().push(ProxyProposalQuery {
+                                    id: proposal_id,
+                                    action: proposal_action,
+                                    creation_timestamp: proposal_creation_timestamp,
+                                    participation_status: ParticipationStatus::FailedToVote,
+                                    timer_scheduled_for: None,
+                                });
+                            });
+                        } else {
+                            print(format!(
+                                "Voting failed for proposal id {}. Retry number {}. Returned error is: {:#?}. Retrying...",
+                                proposal_id.id,
+                                attempt,
+                                err
+                            ));
+                        }
+                    } else if let Ok(status) = checked_proposal {
                         print(format!(
-                            "Proposals check cycle failed. Retrying. Returned error is: {:#?}",
-                            err
+                            "Voted successfully for proposal id {}. The final vote is: {:#?}",
+                            proposal_id.id, status
                         ));
-                    } else {
                         break;
                     }
                 }
@@ -150,21 +193,13 @@ pub async fn vote_on_proposal(
     id: ProposalId,
     action: u64,
     creation_timestamp: u64,
-) -> Result<(), CanisterError> {
+) -> Result<ParticipationStatus, CanisterError> {
     if !get_watch_lock() {
         // lock is off.
         return Err(CanisterError::WatchingIsAlreadyStopped);
     }
 
-    let lock = is_proposal_locked(id);
-
-    if lock.is_none() {
-        return Err(CanisterError::ProposalIsNotInWatchlist);
-    } else {
-        if lock.unwrap() {
-            return Err(CanisterError::ProposalLocked);
-        }
-    }
+    change_proposal_lock(id, true)?;
 
     let governance_canister_id = get_governance_canister_id()?;
 
@@ -208,11 +243,11 @@ pub async fn vote_on_proposal(
                         id,
                         action,
                         creation_timestamp,
-                        participation_status,
+                        participation_status: participation_status.clone(),
                         timer_scheduled_for: None,
                     });
                 });
-                return Ok(());
+                return Ok(participation_status);
             }
 
             let council_members = get_council_members();
@@ -255,12 +290,12 @@ pub async fn vote_on_proposal(
                     id,
                     action,
                     creation_timestamp,
-                    participation_status,
+                    participation_status: participation_status.clone(),
                     timer_scheduled_for: None,
                 });
             });
 
-            Ok(())
+            Ok(participation_status)
         }
     }
 }

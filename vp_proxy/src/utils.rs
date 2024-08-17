@@ -59,7 +59,15 @@ pub async fn vote(proposal_id: ProposalId, vote: i32) -> Result<(), CanisterErro
         handle_intercanister_call::<ManageNeuronResponse>(register_vote_response)?;
 
     if let Some(_command) = manage_neuron_response.command {
-        return Ok(());
+        return match _command {
+            ic_sns_governance::pb::v1::manage_neuron_response::Command::Error(err) => {
+                Err(CanisterError::Unknown(err.error_message))
+            }
+            ic_sns_governance::pb::v1::manage_neuron_response::Command::RegisterVote(_) => Ok(()),
+            _ => Err(CanisterError::Unknown(
+                "Could not handle the manage neuron response".to_string(),
+            )),
+        };
     }
     Err(CanisterError::Unknown(
         "Could not handle the manage neuron response".to_string(),

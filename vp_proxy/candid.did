@@ -1,10 +1,10 @@
 type CanisterError = variant {
   WatchingIsAlreadyInProgress;
-  ProposalIsNotInWatchlist;
+  ProposalIsNotInWatchlist : nat64;
   Unauthorized;
   WatchingIsAlreadyStopped;
   Unknown : text;
-  ProposalLocked;
+  ProposalLocked : nat64;
   NeuronAlreadySet;
   ConfigurationError;
 };
