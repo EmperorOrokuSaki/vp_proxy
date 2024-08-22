@@ -128,7 +128,7 @@ async fn handle_proposal(
                             .await;
                     if let Err(err) = checked_proposal {
                         let _ = change_proposal_lock(proposal_id, false);
-                        if attempt + 1 >= max_retries {
+                        if attempt + 1 > max_retries {
                             print(format!(
                                 "Voting failed for proposal id {}. Retry number {}. Returned error is: {:#?}. No more retries. Adding proposal to history with FailedToVote participation status.",
                                 proposal_id.id,
