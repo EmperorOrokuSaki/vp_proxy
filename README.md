@@ -124,4 +124,4 @@ The canister exposes the following query methods:
 
 ## Acknowledgments
 
-This canister was developed for the ICP CC DAO. However, any other SNS DAO or individual who wishes to use it for personal reasons is welcome to do so.
+This canister was developed for the [ICP CC DAO](https://osjzm-oaaaa-aaaal-ajcoq-cai.icp0.io/#icpcccouncilneuron). However, any other SNS DAO or individual who wishes to use it for personal reasons is welcome to do so.
